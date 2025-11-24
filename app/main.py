@@ -1,11 +1,12 @@
 # In app/main.py
 
 import os
-from fastapi import FastAPI, Request, Depends
+from fastapi import FastAPI, Request, Depends, status
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 
 # --- Core App Imports ---
 from . import models, oauth2
@@ -16,8 +17,8 @@ from fastapi.staticfiles import StaticFiles
 from .routers import (
     auth, user, service, role, request, approval, vehicle, trip,
     maintenance, panne, reparation, fuel, garage, fuel_type,
-    vehicle_make, vehicle_model, vehicle_type, vehicle_transmission, 
-    category_maintenance, category_panne, 
+    vehicle_make, vehicle_model, vehicle_type, vehicle_transmission,
+    category_maintenance, category_panne,
     dashboard_data_api, analytics_api
 )
 
@@ -76,6 +77,33 @@ app.include_router(category_panne.router)
 # Dashboard & Analytics APIs
 app.include_router(dashboard_data_api.router)
 app.include_router(analytics_api.router)
+
+
+# =================================================================
+# --- PIPELINE HEALTH CHECK ENDPOINT ---
+# =================================================================
+
+class HealthCheckResponse(BaseModel):
+    """Response model for the health check endpoint."""
+    status: str = "OK"
+
+@app.get(
+    "/health",
+    tags=["Health Check"],
+    summary="Perform a simple health check",
+    response_description="Returns a success message if the API service is running.",
+    status_code=status.HTTP_200_OK,
+    response_model=HealthCheckResponse,
+)
+def health_check() -> HealthCheckResponse:
+    """
+    **Endpoint to verify that the API is alive and responding.**
+
+    This is a simple check and does not verify database connections or other
+    external services. It's used by the deployment pipeline to confirm the
+    application has started successfully.
+    """
+    return HealthCheckResponse(status="OK")
 
 
 # =================================================================
@@ -142,7 +170,7 @@ async def serve_trips_page(request: Request, user: models.User = Depends(oauth2.
 @app.get("/request.html", response_class=HTMLResponse, tags=["Frontend Pages"])
 async def serve_requests_page(request: Request, user: models.User = Depends(oauth2.require_admin_page)):
     return templates.TemplateResponse("request.html", {"request": request, "user": user})
-    
+
 @app.get("/fuel.html", response_class=HTMLResponse, tags=["Frontend Pages"])
 async def serve_fuel_page(request: Request, user: models.User = Depends(oauth2.require_admin_page)):
     return templates.TemplateResponse("fuel.html", {"request": request, "user": user})
