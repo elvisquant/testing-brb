@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Sign Up - FleetDash</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #3b82f6;
+            --primary-dark: #2563eb;
+            --primary-light: #60a5fa;
+            --background: #0f172a;
+            --surface: rgba(15, 23, 42, 0.95);
+            --surface-light: rgba(30, 41, 59, 0.8);
+            --text-primary: #f8fafc;
+            --text-secondary: #cbd5e1;
+            --text-muted: #64748b;
+            --border: rgba(71, 85, 105, 0.5);
+            --error: rgba(127, 29, 29, 0.5);
+            --error-border: rgba(185, 28, 28, 0.5);
+            --error-text: #fca5a5;
+            --success: rgba(21, 128, 61, 0.5);
+            --success-border: rgba(34, 197, 94, 0.5);
+            --success-text: #86efac;
+            --warning: #f59e0b;
+            --radius: 12px;
+            --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 24px 16px;
+            background: var(--background);
+            background-image:
+                radial-gradient(at 20% 100%, hsla(213, 100%, 56%, 0.15) 0px, transparent 50%),
+                radial-gradient(at 80% 0%, hsla(355, 100%, 93%, 0.1) 0px, transparent 50%);
+            color: var(--text-primary);
+            overflow-x: hidden;
+        }
+
+        .signup-container {
+            width: 100%;
+            max-width: 480px;
+            margin: 0 auto;
+            animation: fadeIn 0.8s ease-out;
+        }
+
+        .signup-card {
+            width: 100%;
+            background: var(--surface);
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: var(--radius);
+            padding: 32px 28px;
+            box-shadow: 0 20px 40px -12px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.05);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .signup-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px; background: linear-gradient(90deg, transparent, var(--primary), transparent); }
+        .brand-section { text-align: center; margin-bottom: 24px; }
+        .brand-logo { width: 52px; height: 52px; margin: 0 auto 12px; border-radius: 12px; background: linear-gradient(135deg, var(--primary), var(--primary-dark)); display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3); }
+        .brand-logo i { width: 22px; height: 22px; color: white; }
+        .brand-title { font-size: 22px; font-weight: 700; color: var(--text-primary); margin-bottom: 4px; letter-spacing: -0.5px; }
+        .brand-subtitle { font-size: 13px; color: var(--text-muted); font-weight: 400; }
+        .form-group { margin-bottom: 16px; }
+        .form-label { display: block; font-size: 13px; font-weight: 500; color: var(--text-secondary); margin-bottom: 6px; }
+        .input-container { position: relative; }
+
+        .input-field, select.input-field {
+            width: 100%;
+            padding: 12px 12px 12px 40px;
+            background: var(--surface-light);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-size: 14px;
+            font-weight: 400;
+            transition: var(--transition);
+            appearance: none;
+        }
+        
+        select.input-field {
+             padding: 12px 40px;
+             background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%2364748b' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+             background-position: right 12px center;
+             background-repeat: no-repeat;
+             background-size: 1.25em;
+        }
+        
+        .input-field:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2); background: rgba(30, 41, 59, 0.9); }
+        .input-field::placeholder { color: var(--text-muted); font-size: 14px; }
+        .icon-input { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text-muted); transition: var(--transition); pointer-events: none; }
+        .input-field:focus + .icon-input { color: var(--primary); }
+        .form-row { display: flex; gap: 16px; }
+        .form-row .form-group { flex: 1; }
+
+        .btn-primary { width: 100%; padding: 12px; background: linear-gradient(135deg, var(--primary), var(--primary-dark)); color: white; border: none; border-radius: 8px; font-weight: 600; font-size: 14px; cursor: pointer; transition: var(--transition); display: flex; align-items: center; justify-content: center; gap: 6px; box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3); }
+        .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(59, 130, 246, 0.4); }
+        .btn-primary:disabled { opacity: 0.7; cursor: not-allowed; transform: none; box-shadow: none; }
+        
+        .message { padding: 12px; border-radius: 8px; font-size: 13px; display: flex; align-items: center; gap: 8px; margin-bottom: 16px; transition: var(--transition); text-align: left; }
+        .error-message { background: var(--error); border: 1px solid var(--error-border); color: var(--error-text); }
+        .success-message { background: var(--success); border: 1px solid var(--success-border); color: var(--success-text); }
+        
+        .signin-link { text-align: center; font-size: 13px; color: var(--text-muted); margin-top: 20px; }
+        .signin-link a { color: var(--primary); text-decoration: none; font-weight: 600; transition: var(--transition); }
+        .signin-link a:hover { color: var(--primary-light); }
+        
+        .password-requirements { margin-top: 10px; padding: 12px; background-color: var(--surface-light); border-radius: 8px; border-left: 3px solid var(--border); }
+        .password-requirements h4 { font-size: 13px; margin-bottom: 10px; color: var(--text-secondary); font-weight: 500; }
+        .requirement { display: flex; align-items: center; margin-bottom: 6px; font-size: 13px; color: var(--text-muted); transition: var(--transition); }
+        .requirement.valid { color: var(--success-text); }
+        .requirement-icon { margin-right: 8px; width: 16px; height: 16px; }
+        
+        .password-strength { height: 4px; background-color: var(--surface-light); border-radius: 2px; margin-top: 8px; overflow: hidden; }
+        .password-strength-bar { height: 100%; width: 0%; transition: width 0.3s, background-color 0.3s; }
+        
+        .password-match { display: none; font-size: 13px; margin-top: 6px; }
+        .password-match.valid { color: var(--success-text); }
+        .password-match.invalid { color: var(--error-text); }
+        
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        .animate-spin { animation: spin 1s linear infinite; }
+        .hidden { display: none !important; }
+
+        @media (max-width: 600px) {
+            .form-row { flex-direction: column; gap: 0; }
+            .signup-card { padding: 24px 20px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="signup-container">
+        <div class="signup-card">
+            <div class="brand-section">
+                <div class="brand-logo"><i data-lucide="user-plus"></i></div>
+                <h1 class="brand-title">Create Your Account</h1>
+                <p class="brand-subtitle">Join FleetDash to get started</p>
+            </div>
+        
+            <form id="signupForm" autocomplete="off">
+                <div id="formMessage" class="message hidden">
+                    <i id="formMessageIcon" data-lucide="alert-circle" class="w-4 h-4"></i>
+                    <span id="formMessageText"></span>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="first_name" class="form-label">First Name</label>
+                        <div class="input-container">
+                            <input type="text" id="first_name" class="input-field" placeholder="e.g., John" required>
+                            <div class="icon-input"><i data-lucide="user" class="w-4 h-4"></i></div>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="last_name" class="form-label">Last Name</label>
+                        <div class="input-container">
+                            <input type="text" id="last_name" class="input-field" placeholder="e.g., Doe" required>
+                            <div class="icon-input"><i data-lucide="user" class="w-4 h-4"></i></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="matricule" class="form-label">Matricule</label>
+                        <div class="input-container">
+                            <input type="text" id="matricule" class="input-field" placeholder="e.g., 123456789" required maxlength="9">
+                            <div class="icon-input"><i data-lucide="hash" class="w-4 h-4"></i></div>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="telephone" class="form-label">Telephone</label>
+                        <div class="input-container">
+                            <input type="tel" id="telephone" class="input-field" placeholder="e.g., 612345678" required>
+                            <div class="icon-input"><i data-lucide="phone" class="w-4 h-4"></i></div>
+                        </div>
+                    </div>
+                </div>
+            
+                <div class="form-group">
+                    <label for="service_id" class="form-label">Service / Department</label>
+                    <div class="input-container">
+                        <select id="service_id" class="input-field" required>
+                            <option value="" disabled selected>Loading services...</option>
+                        </select>
+                        <div class="icon-input"><i data-lucide="building-2" class="w-4 h-4"></i></div>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="email" class="form-label">Email Address</label>
+                    <div class="input-container">
+                        <input type="email" id="email" class="input-field" placeholder="your.email@example.com" required>
+                        <div class="icon-input"><i data-lucide="mail" class="w-4 h-4"></i></div>
+                    </div>
+                </div>
+            
+                <div class="form-group">
+                    <label for="password" class="form-label">Password</label>
+                    <div class="input-container">
+                        <input type="password" id="password" class="input-field" placeholder="Create a strong password" required autocomplete="new-password">
+                        <div class="icon-input"><i data-lucide="lock" class="w-4 h-4"></i></div>
+                    </div>
+                    <div class="password-strength"><div class="password-strength-bar" id="passwordStrengthBar"></div></div>
+                </div>
+
+                <div class="form-group">
+                    <label for="confirmPassword" class="form-label">Confirm Password</label>
+                    <div class="input-container">
+                        <input type="password" id="confirmPassword" class="input-field" placeholder="Confirm your password" required autocomplete="new-password">
+                        <div class="icon-input"><i data-lucide="lock-keyhole" class="w-4 h-4"></i></div>
+                    </div>
+                    <div class="password-match" id="passwordMatchMessage"></div>
+                </div>
+
+                <div class="password-requirements">
+                    <h4>Password Must Contain:</h4>
+                    <div class="requirement" id="req-length"><i data-lucide="circle" class="w-4 h-4 requirement-icon"></i>At least 8 characters</div>
+                    <div class="requirement" id="req-uppercase"><i data-lucide="circle" class="w-4 h-4 requirement-icon"></i>One uppercase letter (A-Z)</div>
+                    <div class="requirement" id="req-lowercase"><i data-lucide="circle" class="w-4 h-4 requirement-icon"></i>One lowercase letter (a-z)</div>
+                    <div class="requirement" id="req-number"><i data-lucide="circle" class="w-4 h-4 requirement-icon"></i>One number (0-9)</div>
+                    <div class="requirement" id="req-special"><i data-lucide="circle" class="w-4 h-4 requirement-icon"></i>One special character (!@#$)</div>
+                </div>
+
+                <button type="submit" id="submitButton" class="btn-primary mt-6">
+                    <span id="submitButtonText">Create Account</span>
+                    <i id="submitSpinner" data-lucide="loader-2" class="w-4 h-4 animate-spin hidden"></i>
+                </button>
+            
+                <div class="signin-link">
+                    Already have an account? <a href="/login.html">Sign In</a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            lucide.createIcons();
+
+            // --- DOM Element Selection ---
+            const signupForm = document.getElementById('signupForm');
+            const serviceSelect = document.getElementById('service_id');
+            const submitButton = document.getElementById('submitButton');
+            const submitButtonText = document.getElementById('submitButtonText');
+            const submitSpinner = document.getElementById('submitSpinner');
+            const formMessage = document.getElementById('formMessage');
+            const formMessageText = document.getElementById('formMessageText');
+            const formMessageIcon = document.getElementById('formMessageIcon');
+            const passwordInput = document.getElementById('password');
+            const confirmPasswordInput = document.getElementById('confirmPassword');
+            const passwordMatchMessage = document.getElementById('passwordMatchMessage');
+            const passwordStrengthBar = document.getElementById('passwordStrengthBar');
+            const reqLength = document.getElementById('req-length');
+            const reqUppercase = document.getElementById('req-uppercase');
+            const reqLowercase = document.getElementById('req-lowercase');
+            const reqNumber = document.getElementById('req-number');
+            const reqSpecial = document.getElementById('req-special');
+
+            const requirements = {
+                length: { el: reqLength, regex: /.{8,}/ },
+                uppercase: { el: reqUppercase, regex: /[A-Z]/ },
+                lowercase: { el: reqLowercase, regex: /[a-z]/ },
+                number: { el: reqNumber, regex: /[0-9]/ },
+                special: { el: reqSpecial, regex: /[!@#$%^&*]/ }
+            };
+
+            // --- Password Validation Logic ---
+            function validatePassword() {
+                const password = passwordInput.value;
+                const confirmPassword = confirmPasswordInput.value;
+
+                if (confirmPassword) {
+                    if (password === confirmPassword) {
+                        passwordMatchMessage.textContent = "Passwords match!";
+                        passwordMatchMessage.className = "password-match valid";
+                        passwordMatchMessage.style.display = "block";
+                        return true;
+                    } else {
+                        passwordMatchMessage.textContent = "Passwords do not match.";
+                        passwordMatchMessage.className = "password-match invalid";
+                        passwordMatchMessage.style.display = "block";
+                        return false;
+                    }
+                } else {
+                    passwordMatchMessage.style.display = "none";
+                    return false;
+                }
+            }
+
+            function checkPasswordRequirements() {
+                const password = passwordInput.value;
+                let allValid = true;
+                let strength = 0;
+
+                for (const key in requirements) {
+                    const isValid = requirements[key].regex.test(password);
+                    const icon = requirements[key].el.querySelector('.requirement-icon');
+                    if (isValid) {
+                        requirements[key].el.classList.add('valid');
+                        icon.setAttribute('data-lucide', 'check-circle');
+                        strength += 20;
+                    } else {
+                        requirements[key].el.classList.remove('valid');
+                        icon.setAttribute('data-lucide', 'circle');
+                        allValid = false;
+                    }
+                }
+                
+                lucide.createIcons();
+                updateStrengthBar(strength);
+                return allValid;
+            }
+            
+            function updateStrengthBar(strength) {
+                passwordStrengthBar.style.width = strength + '%';
+                if (strength < 40) passwordStrengthBar.style.backgroundColor = 'var(--error-text)';
+                else if (strength < 80) passwordStrengthBar.style.backgroundColor = 'var(--warning)';
+                else passwordStrengthBar.style.backgroundColor = 'var(--success-text)';
+            }
+            
+            passwordInput.addEventListener('input', () => {
+                checkPasswordRequirements();
+                validatePassword();
+            });
+            confirmPasswordInput.addEventListener('input', validatePassword);
+
+            // --- Dropdown Population for Services ---
+            async function populateServices() {
+                try {
+                    // This endpoint needs to be public for the signup page to access it.
+                    const response = await fetch('/service/');
+                    if (!response.ok) throw new Error('Could not load services.');
+                    
+                    const services = await response.json();
+                    serviceSelect.innerHTML = '<option value="" disabled selected>Select your service</option>';
+                    services.forEach(service => {
+                        const option = document.createElement('option');
+                        option.value = service.id;
+                        // --- THIS IS THE CORRECTED LINE ---
+                        // The ServiceOut schema uses 'service_name', not 'name'.
+                        option.textContent = service.service_name;
+                        serviceSelect.appendChild(option);
+                    });
+                } catch (error) {
+                    console.error('Error fetching services:', error);
+                    serviceSelect.innerHTML = '<option value="" disabled selected>Error loading services</option>';
+                }
+            }
+            populateServices();
+
+            // --- Form Submission Logic ---
+            signupForm.addEventListener('submit', async function(e) {
+                e.preventDefault();
+
+                if (!validatePassword()) {
+                    showMessage('Passwords do not match.', 'error');
+                    return;
+                }
+                if (!checkPasswordRequirements()) {
+                    showMessage('Password does not meet all requirements.', 'error');
+                    return;
+                }
+
+                setButtonState('loading');
+                formMessage.classList.add('hidden');
+
+                const userData = {
+                    first_name: document.getElementById('first_name').value,
+                    last_name: document.getElementById('last_name').value,
+                    matricule: document.getElementById('matricule').value,
+                    telephone: document.getElementById('telephone').value,
+                    service_id: parseInt(serviceSelect.value, 10),
+                    email: document.getElementById('email').value,
+                    password: document.getElementById('password').value
+                };
+                
+                if (isNaN(userData.service_id)) {
+                    showMessage('Please select a service.', 'error');
+                    setButtonState('default');
+                    return;
+                }
+
+                try {
+                    const response = await fetch('/user/', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(userData),
+                    });
+
+                    const data = await response.json();
+                    if (!response.ok) throw new Error(data.detail || 'An unknown error occurred.');
+
+                    showMessage('Account created successfully! You will be redirected to the login page.', 'success');
+                    signupForm.reset();
+                    
+                    setTimeout(() => {
+                        window.location.href = '/';
+                    }, 3000);
+
+                } catch (error) {
+                    showMessage(error.message, 'error');
+                    setButtonState('default');
+                }
+            });
+            
+            // --- Helper Functions ---
+            function setButtonState(state) {
+                if (state === 'loading') {
+                    submitButton.disabled = true;
+                    submitButtonText.classList.add('hidden');
+                    submitSpinner.classList.remove('hidden');
+                } else {
+                    submitButton.disabled = false;
+                    submitButtonText.classList.remove('hidden');
+                    submitSpinner.classList.add('hidden');
+                }
+                lucide.createIcons();
+            }
+
+            function showMessage(message, type) {
+                formMessageText.textContent = message;
+                formMessage.className = `message ${type === 'success' ? 'success-message' : 'error-message'}`;
+                formMessageIcon.setAttribute('data-lucide', type === 'success' ? 'check-circle' : 'alert-circle');
+                lucide.createIcons();
+                formMessage.classList.remove('hidden');
+                formMessage.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+        });
+    </script>
+</body>
+</html>

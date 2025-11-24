@@ -1,0 +1,1422 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dashboard - Vehicle Management</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.23/jspdf.plugin.autotable.min.js"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script>
+    tailwind.config = { darkMode: 'class' }
+  </script>
+  <style>
+    .modal {
+      transition: opacity 0.3s ease-in-out, visibility 0.3s ease-in-out;
+    }
+
+    .modal.hidden {
+      visibility: hidden;
+      opacity: 0;
+    }
+
+    .modal:not(.hidden) {
+      visibility: visible;
+      opacity: 1;
+    }
+
+    .dark .modal-content {
+      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 10px 10px -5px rgba(0, 0, 0, 0.2);
+    }
+
+    .date-filter-btn.active {
+      background-color: #3b82f6;
+      color: white;
+    }
+
+    .dark .date-filter-btn.active {
+      background-color: #60a5fa;
+    }
+
+    .view-detail-label {
+      font-weight: 500;
+      color: #4b5563;
+    }
+
+    .dark .view-detail-label {
+      color: #d1d5db;
+    }
+
+    .view-detail-value {
+      color: #1f2937;
+    }
+
+    .dark .view-detail-value {
+      color: #f9fafb;
+    }
+  </style>
+</head>
+
+<body class="bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-white">
+
+  <!-- Main application wrapper -->
+  <div class="flex h-screen">
+
+    <!-- Sidebar (Left) - Modified for responsiveness -->
+    <aside id="sidebar" class="fixed inset-y-0 left-0 z-40 w-64 bg-white dark:bg-gray-800/95 backdrop-blur-sm p-4 space-y-6 shadow-lg
+                             transform -translate-x-full transition-transform duration-300 ease-in-out
+                             md:relative md:translate-x-0 md:shadow-lg md:border-r dark:border-gray-700
+                             flex flex-col flex-shrink-0">
+      <div class="flex justify-between items-center">
+        <div class="text-2xl font-bold flex items-center space-x-2 text-primary dark:text-primary-light">
+          <i data-lucide="command" class="w-7 h-7"></i><span>FleetDash</span>
+        </div>
+        <!-- Close button for mobile sidebar -->
+        <button id="sidebar-close-button"
+          class="md:hidden text-gray-700 dark:text-gray-300 p-1 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700">
+          <i data-lucide="x" class="w-6 h-6"></i>
+        </button>
+      </div>
+      <nav class="flex-1 overflow-y-auto">
+        <ul class="space-y-2">
+          <li
+            class="flex items-center space-x-3 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 p-2 rounded-md transition-colors">
+            <i data-lucide="layout-dashboard" class="w-5 h-5"></i><a href="dashboard.html">Dashboard</a>
+          </li>
+          <li
+            class="flex items-center space-x-3 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 p-2 rounded-md transition-colors">
+            <i data-lucide="pie-chart" class="w-5 h-5"></i><a href="analytics.html">Analytics</a>
+          </li>
+          <li
+            class="flex items-center space-x-3 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 p-2 rounded-md transition-colors">
+            <i data-lucide="user" class="w-5 h-5"></i><a href="users.html">Utilisateurs</a>
+          </li>
+          <li
+            class="flex items-center space-x-3 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 p-2 rounded-md transition-colors">
+            <i data-lucide="alert-triangle" class="w-5 h-5"></i><a href="panne.html">Pannes</a>
+          </li>
+          <li
+            class="flex items-center space-x-3 text-blue-600 dark:text-blue-400 font-semibold bg-blue-50 dark:bg-gray-700 p-2 rounded-md transition-colors">
+            <i data-lucide="car" class="w-5 h-5"></i><a href="vehicle.html">Vehicules</a>
+          </li>
+          <li
+            class="flex items-center space-x-3 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 p-2 rounded-md transition-colors">
+            <i data-lucide="wrench" class="w-5 h-5"></i><a href="reparation.html">Reparation</a>
+          </li>
+          <li
+            class="flex items-center space-x-3 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 p-2 rounded-md transition-colors">
+            <i data-lucide="droplet" class="w-5 h-5"></i><a href="fuel.html">Carburant</a>
+          </li>
+          <li
+            class="flex items-center space-x-3 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 p-2 rounded-md transition-colors">
+            <i data-lucide="settings" class="w-5 h-5"></i><a href="maintenance.html">Maintenance</a>
+          </li>
+          <li
+            class="flex items-center space-x-3 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 p-2 rounded-md transition-colors">
+            <i data-lucide="route" class="w-5 h-5"></i><a href="trip.html">Voyage</a>
+          </li>
+        </ul>
+      </nav>
+      <div class="pt-4 border-t border-gray-200 dark:border-gray-700/50 mt-auto">
+        <a href="#" id="global-logout-btn"
+          class="flex items-center space-x-3 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700/40 p-2.5 rounded-lg transition-colors">
+          <i data-lucide="log-out" class="w-5 h-5"></i><span>Deconnexion</span>
+        </a>
+      </div>
+    </aside>
+
+    <!-- Overlay for mobile menu -->
+    <div id="sidebar-overlay" class="fixed inset-0 bg-black bg-opacity-50 z-30 hidden md:hidden"></div>
+
+    <!-- Content Area Wrapper (Header + Main Content + Right Sidebar) -->
+    <div class="flex-1 flex flex-col overflow-hidden">
+
+      <!-- Header (Mobile Hamburger, Desktop Title, Theme Toggle, User Info) -->
+      <header class="bg-white dark:bg-gray-800 shadow p-3 flex justify-between items-center flex-shrink-0 h-16">
+        <!-- Hamburger Menu Button - visible only on mobile -->
+        <button id="mobile-menu-button" class="md:hidden text-gray-700 dark:text-gray-300 focus:outline-none p-2">
+          <i data-lucide="menu" class="w-6 h-6"></i>
+        </button>
+
+        <!-- Mobile Title - visible only on mobile -->
+        <div class="text-lg font-bold text-primary dark:text-primary-light md:hidden">
+          FleetDash
+        </div>
+
+        <!-- Desktop Title/Context - hidden on mobile -->
+        <div class="hidden md:block text-xl font-semibold text-gray-700 dark:text-gray-200">
+          Gestion Vehicules
+        </div>
+
+        <!-- Right side of header: Theme Toggle & User Info -->
+        <div class="flex items-center space-x-3">
+          <button id="theme-toggle-header"
+            class="text-xl p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300">
+            <!-- Icon will be set by JS -->
+          </button>
+          <!-- User info for desktop header - hidden on mobile -->
+          <div class="hidden md:flex items-center space-x-2">
+            <div class="text-sm font-semibold" id="userDisplayNameHeader">User</div>
+            <div class="text-xs text-gray-500 dark:text-gray-400">Admin</div>
+          </div>
+        </div>
+      </header>
+
+      <!-- Main scrollable content area (Main Page Content + Right Sidebar) -->
+      <div class="flex-1 flex overflow-hidden">
+        <main class="flex-1 overflow-y-auto p-6">
+          <!-- Vehicle Table Section -->
+          <section id="vehicle-section" class="bg-white dark:bg-gray-800 p-4 rounded-xl shadow mb-6">
+            <div class="flex flex-col sm:flex-row justify-between items-center mb-4 gap-3">
+              <div class="flex flex-wrap gap-2 items-center">
+                <button onclick="openAddVehicleModal()"
+                  class="bg-blue-500 text-white px-3 py-2 rounded-lg hover:bg-blue-600 flex items-center gap-1 text-sm shadow-sm">
+                  <i data-lucide="plus" class="w-4 h-4"></i> Ajout Vehicule
+                </button>
+                <input type="text" id="vehicleSearch" placeholder="Search vehicles (plate, VIN, make...)"
+                  class="border dark:border-gray-600 rounded-lg px-3 py-2 text-sm text-black dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent w-full sm:w-auto">
+              </div>
+              <div class="flex flex-wrap gap-2 items-center">
+                <button onclick="exportVehiclesExcel()"
+                  class="bg-green-500 text-white px-3 py-2 rounded-lg hover:bg-green-600 text-sm shadow-sm">📄
+                  Excel</button>
+                <button onclick="exportVehiclesPDF()"
+                  class="bg-red-500 text-white px-3 py-2 rounded-lg hover:bg-red-600 text-sm shadow-sm">🧾 PDF</button>
+              </div>
+            </div>
+
+            <div class="mb-4 flex flex-wrap items-center gap-2">
+              <span class="text-sm font-medium mr-2">Filter Vehicles by Registration Date:</span>
+              <button id="vehicle-filter-today" onclick="applyVehicleDateFilter('today')"
+                class="date-filter-btn px-3 py-1.5 text-sm border dark:border-gray-600 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700">Aujourdhui</button>
+              <button id="vehicle-filter-last7" onclick="applyVehicleDateFilter('last7days')"
+                class="date-filter-btn px-3 py-1.5 text-sm border dark:border-gray-600 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700">Dernier
+                7 Jours</button>
+              <button id="vehicle-filter-last30" onclick="applyVehicleDateFilter('last30days')"
+                class="date-filter-btn px-3 py-1.5 text-sm border dark:border-gray-600 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700">Dernier
+                30 Jours</button>
+              <button id="vehicle-filter-all" onclick="applyVehicleDateFilter('all')"
+                class="date-filter-btn px-3 py-1.5 text-sm border dark:border-gray-600 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 active">Tous
+                les
+                Temps</button>
+              <button id="vehicle-filter-custom-btn" onclick="toggleVehicleCustomDateRange()"
+                class="date-filter-btn px-3 py-1.5 text-sm border dark:border-gray-600 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700">Periode
+                Personalisee</button>
+            </div>
+            <div id="vehicleCustomDateRange"
+              class="mb-4 hidden items-center gap-2 p-3 border dark:border-gray-700 rounded-md bg-gray-50 dark:bg-gray-800/50">
+              <input type="date" id="vehicleCustomStartDate"
+                class="border dark:border-gray-600 rounded-md px-2 py-1.5 text-sm text-black dark:bg-gray-700 dark:text-white">
+              <span class="text-sm">A</span>
+              <input type="date" id="vehicleCustomEndDate"
+                class="border dark:border-gray-600 rounded-md px-2 py-1.5 text-sm text-black dark:bg-gray-700 dark:text-white">
+              <button onclick="applyVehicleCustomDateFilter()"
+                class="bg-blue-500 text-white px-3 py-1.5 text-sm rounded-md hover:bg-blue-600">Appliquer</button>
+            </div>
+
+            <div class="overflow-x-auto">
+              <table id="vehiclesTable" class="w-full text-left text-sm">
+                <thead>
+                  <tr class="border-b dark:border-gray-700">
+                    <th class="py-3 px-2 font-semibold">ID</th>
+                    <th class="px-2 font-semibold">Fabricant</th>
+                    <th class="px-2 font-semibold">Modele</th>
+                    <th class="px-2 font-semibold">Annee</th>
+                    <th class="px-2 font-semibold">Plaque #</th>
+                    <th class="px-2 font-semibold">Mileage</th>
+                    <th class="px-2 font-semibold">Status</th>
+                    <th class="px-2 font-semibold">Enregistre</th>
+                    <th class="px-2 font-semibold text-center">Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="vehiclesBody"></tbody>
+              </table>
+            </div>
+            <div class="mt-6 flex flex-col sm:flex-row justify-between items-center space-y-3 sm:space-y-0">
+              <div class="text-sm text-gray-600 dark:text-gray-400" id="vehiclesCount"></div>
+              <div class="flex items-center space-x-1" id="vehiclesPagination"></div>
+            </div>
+          </section>
+        </main>
+
+        <!-- Right Sidebar -->
+        <aside
+          class="w-1/5 bg-white dark:bg-gray-800/95 backdrop-blur-sm p-4 space-y-6 shadow-lg hidden lg:block flex-shrink-0 border-l dark:border-gray-700 overflow-y-auto">
+          <div class="flex justify-end items-center">
+            <div class="text-right">
+              <div class="text-sm font-semibold text-gray-800 dark:text-white" id="userDisplayNameRightSidebar">User
+              </div>
+              <div class="text-xs text-gray-500 dark:text-gray-400">Fleet Analyst</div>
+            </div>
+            <img src="https://i.pravatar.cc/40?u=analyst_jane_doe" alt="Analyst"
+              class="w-10 h-10 rounded-full ml-2 object-cover">
+          </div>
+          <hr class="dark:border-gray-700/50">
+          <div>
+            <h4 class="font-semibold mb-3 text-gray-700 dark:text-gray-200">Performance Cles</h4>
+            <ul id="keyPerformanceInsightsList" class="text-xs space-y-2.5 text-gray-600 dark:text-gray-300">
+              <li class="flex items-start space-x-2"><i data-lucide="loader-2"
+                  class="w-4 h-4 text-gray-400 animate-spin mt-0.5 shrink-0"></i><span>Chargement insights...</span>
+              </li>
+            </ul>
+          </div>
+          <hr class="dark:border-gray-700/50">
+          <div>
+            <div class="flex justify-between items-center mb-3">
+              <h4 class="font-semibold text-gray-700 dark:text-gray-200">Alertes & Notifications</h4>
+              <a href="#" id="viewAllNotificationsLink"
+                class="text-xs text-primary dark:text-primary-light hover:underline">Voir Tous (<span
+                  id="notificationCount">0</span>)</a>
+            </div>
+            <div id="notificationsList" class="space-y-3 max-h-40 overflow-y-auto pr-1">
+              <div class="flex items-start space-x-2 p-2.5 bg-gray-100 dark:bg-gray-700/50 rounded-lg"><i
+                  data-lucide="loader-2" class="w-5 h-5 text-gray-400 animate-spin mt-0.5 flex-shrink-0"></i>
+                <p class="text-xs text-gray-700 dark:text-gray-300">Chargement alerets...</p>
+              </div>
+            </div>
+          </div>
+        </aside>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add/Edit Vehicle Modal -->
+  <div id="addVehicleModal"
+    class="modal fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50 hidden">
+    <div
+      class="modal-content bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+      <div class="p-6">
+        <div class="flex justify-between items-center mb-6">
+          <div>
+            <h3 class="text-xl font-bold text-gray-800 dark:text-white" id="vehicleModalTitle">Ajout Nouveau Vehicule
+            </h3>
+            <p class="text-sm text-gray-500 dark:text-gray-400">Completer les details du Vehicle</p>
+          </div>
+          <button onclick="closeAddVehicleModal()" class="p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700">
+            <i data-lucide="x" class="w-5 h-5 text-gray-500 dark:text-gray-400"></i>
+          </button>
+        </div>
+        <form id="addVehicleForm" class="space-y-4">
+          <input type="hidden" id="vehicleId_form">
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label for="vehicle_make_form"
+                class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">fabricant</label>
+              <select id="vehicle_make_form" required
+                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"></select>
+            </div>
+            <div>
+              <label for="vehicle_model_form"
+                class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Modele</label>
+              <select id="vehicle_model_form" required
+                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"></select>
+            </div>
+            <div>
+              <label for="vehicle_year_form"
+                class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Annee</label>
+              <input type="number" id="vehicle_year_form" required
+                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                placeholder="e.g., 2020">
+            </div>
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label for="vehicle_plate_number_form"
+                class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Plaque</label>
+              <input type="text" id="vehicle_plate_number_form" required
+                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                placeholder="e.g., ABC-123">
+            </div>
+            <div>
+              <label for="vehicle_vin_form"
+                class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">VIN</label>
+              <input type="text" id="vehicle_vin_form" required
+                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                placeholder="Vehicle Identification Number">
+            </div>
+            <div>
+              <label for="vehicle_color_form"
+                class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Couleur</label>
+              <input type="text" id="vehicle_color_form" required
+                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                placeholder="e.g., Red">
+            </div>
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label for="vehicle_mileage_form"
+                class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Mileage</label>
+              <input type="number" step="0.1" id="vehicle_mileage_form"
+                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                placeholder="e.g., 50000.5">
+            </div>
+            <div>
+              <label for="vehicle_engine_size_form"
+                class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Taille Moteur (L)</label>
+              <input type="number" step="0.1" id="vehicle_engine_size_form" required
+                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                placeholder="e.g., 2.0">
+            </div>
+            <div>
+              <label for="vehicle_type_form"
+                class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Type Vehicule</label>
+              <select id="vehicle_type_form" required
+                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"></select>
+            </div>
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label for="vehicle_transmission_form"
+                class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Transmission</label>
+              <select id="vehicle_transmission_form" required
+                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"></select>
+            </div>
+            <div>
+              <label for="vehicle_fuel_type_form"
+                class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Type Carburant</label>
+              <select id="vehicle_fuel_type_form" required
+                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"></select>
+            </div>
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label for="vehicle_purchase_price_form"
+                class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Prix Achat</label>
+              <input type="number" step="0.01" id="vehicle_purchase_price_form" required
+                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                placeholder="e.g., 25000.00">
+            </div>
+            <div>
+              <label for="vehicle_purchase_date_form"
+                class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Date Achat</label>
+              <input type="date" id="vehicle_purchase_date_form" required
+                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white">
+            </div>
+          </div>
+          <div class="flex justify-end gap-3 pt-4">
+            <button type="button" onclick="closeAddVehicleModal()"
+              class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700">Annuler</button>
+            <button type="submit" id="vehicleSubmitButton"
+              class="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg flex items-center gap-2">
+              <i data-lucide="plus-circle" class="w-4 h-4"></i> Ajout Vehicule
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- View Vehicle Record Modal -->
+  <div id="viewVehicleModal"
+    class="modal fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50 hidden">
+    <div
+      class="modal-content bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+      <div class="p-6">
+        <div class="flex justify-between items-center mb-6">
+          <h3 class="text-xl font-bold text-gray-800 dark:text-white">Details Vehicule</h3>
+          <button onclick="closeViewVehicleModal()" class="p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700">
+            <i data-lucide="x" class="w-5 h-5 text-gray-500 dark:text-gray-400"></i>
+          </button>
+        </div>
+        <div id="viewVehicleDetails" class="space-y-3 text-sm">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-3">
+            <div><span class="view-detail-label">ID Vehicule:</span> <span id="view-vehicle-id"
+                class="view-detail-value"></span></div>
+            <div><span class="view-detail-label">Numero Plaque:</span> <span id="view-vehicle-plate_number"
+                class="view-detail-value"></span></div>
+            <div><span class="view-detail-label">Fabricant:</span> <span id="view-vehicle-make"
+                class="view-detail-value"></span></div>
+            <div><span class="view-detail-label">Modele:</span> <span id="view-vehicle-model"
+                class="view-detail-value"></span></div>
+            <div><span class="view-detail-label">Annee:</span> <span id="view-vehicle-year"
+                class="view-detail-value"></span></div>
+            <div><span class="view-detail-label">VIN:</span> <span id="view-vehicle-vin"
+                class="view-detail-value"></span></div>
+            <div><span class="view-detail-label">Couleur:</span> <span id="view-vehicle-color"
+                class="view-detail-value"></span></div>
+            <div><span class="view-detail-label">Mileage:</span> <span id="view-vehicle-mileage"
+                class="view-detail-value"></span></div>
+            <div><span class="view-detail-label">Taille Moteur:</span> <span id="view-vehicle-engine_size"
+                class="view-detail-value"></span> L</div>
+            <div><span class="view-detail-label">Vehicle Type:</span> <span id="view-vehicle-type"
+                class="view-detail-value"></span></div>
+            <div><span class="view-detail-label">Transmission:</span> <span id="view-vehicle-transmission"
+                class="view-detail-value"></span></div>
+            <div><span class="view-detail-label">Type Carburant:</span> <span id="view-vehicle-fuel_type"
+                class="view-detail-value"></span></div>
+            <div><span class="view-detail-label">Prix Achat:</span> $<span id="view-vehicle-purchase_price"
+                class="view-detail-value"></span></div>
+            <div><span class="view-detail-label">Date Achat:</span> <span id="view-vehicle-purchase_date"
+                class="view-detail-value"></span></div>
+            <div><span class="view-detail-label">Status:</span> <span id="view-vehicle-status"
+                class="view-detail-value"></span></div>
+            <div><span class="view-detail-label">Date d Enregistrement:</span> <span id="view-vehicle-registration_date"
+                class="view-detail-value"></span></div>
+          </div>
+        </div>
+        <div class="flex justify-end pt-6">
+          <button type="button" onclick="closeViewVehicleModal()"
+            class="px-4 py-2 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 rounded-lg">Fermer</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Generic Confirmation Modal -->
+  <div id="genericConfirmModal"
+    class="modal fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50 hidden">
+    <div class="modal-content bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-md">
+      <div class="p-6">
+        <div class="flex justify-between items-center mb-4">
+          <h3 id="genericConfirmModalTitle" class="text-xl font-bold text-gray-800 dark:text-white">Confirmer Action
+          </h3>
+          <button onclick="closeGenericConfirmModal()"
+            class="p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700">
+            <i data-lucide="x" class="w-5 h-5 text-gray-500 dark:text-gray-400"></i>
+          </button>
+        </div>
+        <p id="genericConfirmModalMessage" class="text-sm text-gray-600 dark:text-gray-400 mb-6">Etes vous sur de
+          vouloir
+          proceder?</p>
+        <div class="flex justify-end gap-3 pt-4">
+          <button onclick="closeGenericConfirmModal()"
+            class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700">
+            Annuler
+          </button>
+          <button id="genericConfirmModalConfirmBtn"
+            class="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg flex items-center gap-2">
+            Confirmer
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Information/Status Modal -->
+  <div id="infoStatusModal"
+    class="modal fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50 hidden">
+    <div class="modal-content bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-md">
+      <div class="p-6 text-center">
+        <div id="infoStatusModalIconContainer"
+          class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-green-100 mb-4">
+        </div>
+        <h3 id="infoStatusModalTitle" class="text-lg leading-6 font-medium text-gray-900 dark:text-white mb-2">Status
+        </h3>
+        <div class="mt-2">
+          <p id="infoStatusModalMessage" class="text-sm text-gray-500 dark:text-gray-400">Message ici.</p>
+        </div>
+        <div class="mt-5 sm:mt-6">
+          <button type="button" onclick="closeInfoStatusModal()" id="infoStatusModalOkButton"
+            class="inline-flex justify-center w-full rounded-md border border-transparent shadow-sm px-4 py-2 bg-blue-600 text-base font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:text-sm">
+            OK
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const API_BASE_URL = '';
+    const LOGIN_PAGE_URL = '/login';
+
+    // --- Authentication Helper ---
+    function getAuthToken() { return localStorage.getItem('accessToken'); }
+    function parseJwt(token) { try { return JSON.parse(atob(token.split('.')[1])); } catch (e) { console.error("JWT Parse Error:", e); return null; } }
+
+    function updateUserInfoDisplay() {
+      const token = getAuthToken();
+      const userDisplayElements = [
+        document.getElementById('userDisplayNameHeader'),
+        document.getElementById('userDisplayNameRightSidebar')
+      ];
+
+      userDisplayElements.forEach(userDisplayElement => {
+        if (!userDisplayElement) return;
+        if (token) {
+          const decoded = parseJwt(token);
+          userDisplayElement.textContent = (decoded && decoded.sub) ? decoded.sub : 'User (token issue)';
+        } else {
+          userDisplayElement.textContent = 'Guest';
+        }
+      });
+    }
+
+    // START: FINALIZED apiRequest FUNCTION
+    async function apiRequest(endpoint, method = 'GET', body = null, options = {}) {
+      const token = getAuthToken();
+      const headers = { 'Content-Type': 'application/json' };
+
+      // If a token exists, add it to all API requests.
+      // Server-side public routes can simply ignore the Authorization header.
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
+      const config = {
+        method,
+        headers
+      };
+      if (body) {
+        config.body = JSON.stringify(body);
+      }
+
+      try {
+        const response = await fetch(`${API_BASE_URL}${endpoint}`, config);
+
+        // Centralized handling for 401 Unauthorized errors.
+        if (response.status === 401) {
+          if (!options.suppressGlobalError) {
+            openInfoStatusModal("Authentication Error", "Session expired or unauthorized. Please log in again.", "error", 5000);
+          }
+          return null;
+        }
+
+        if (response.status === 204) { // Handle No Content success response
+          return true;
+        }
+
+        const text = await response.text();
+        const responseData = text ? JSON.parse(text) : null;
+
+        if (!response.ok) {
+          const errorDetail = responseData?.detail || (typeof responseData === 'object' ? JSON.stringify(responseData) : responseData) || 'Unknown error from server.';
+          console.error(`API Error for ${endpoint}: ${response.status}`, errorDetail);
+          if (!options.suppressGlobalError) {
+            openInfoStatusModal(`API Error: ${response.status}`, errorDetail, "error");
+          }
+          return null;
+        }
+
+        return responseData;
+      } catch (error) {
+        console.error(`Network/Catch Error during API request to ${endpoint}:`, error);
+        if (!options.suppressGlobalError) {
+          openInfoStatusModal("Request Error", error.message || 'A network or parsing error occurred.', "error");
+        }
+        return null;
+      }
+    }
+    // END: FINALIZED apiRequest FUNCTION
+
+    // --- Global Variables ---
+    let allFetchedVehiclesFromServer = [];
+    let vehicleMakesData = [];
+    let vehicleModelsData = [];
+    let vehicleTypesData = [];
+    let vehicleTransmissionsData = [];
+    let fuelTypesData = [];
+
+    const vehiclesPerPage = 5;
+    let currentVehiclePage = 1;
+    let vehicleToEditId = null;
+    let vehicleToDeleteId = null;
+    let activeVehicleDateFilter = 'all';
+    let customVehicleFilterStartDate = null;
+    let customVehicleFilterEndDate = null;
+
+    let currentConfirmAction = null;
+    let currentActionData = null;
+    let infoStatusModalTimeout = null;
+
+    // --- Sidebar Toggle Functionality ---
+    const sidebar = document.getElementById('sidebar');
+    const mobileMenuButton = document.getElementById('mobile-menu-button');
+    const sidebarCloseButton = document.getElementById('sidebar-close-button');
+    const sidebarOverlay = document.getElementById('sidebar-overlay');
+
+    function openMobileMenu() {
+      if (sidebar && sidebarOverlay) {
+        sidebar.classList.remove('-translate-x-full');
+        sidebar.classList.add('translate-x-0');
+        sidebarOverlay.classList.remove('hidden');
+        document.body.classList.add('overflow-hidden', 'md:overflow-auto');
+      }
+    }
+
+    function closeMobileMenu() {
+      if (sidebar && sidebarOverlay) {
+        sidebar.classList.add('-translate-x-full');
+        sidebar.classList.remove('translate-x-0');
+        sidebarOverlay.classList.add('hidden');
+        document.body.classList.remove('overflow-hidden');
+      }
+    }
+
+    // --- Theme Toggle ---
+    const themeToggleButton = document.getElementById('theme-toggle-header');
+    function setInitialThemeIcon() {
+      if (themeToggleButton) {
+        if (localStorage.getItem('theme') === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+          document.documentElement.classList.add('dark');
+          themeToggleButton.innerHTML = '<i data-lucide="sun" class="w-5 h-5"></i>';
+        } else {
+          document.documentElement.classList.remove('dark');
+          themeToggleButton.innerHTML = '<i data-lucide="moon" class="w-5 h-5"></i>';
+        }
+        lucide.createIcons();
+      }
+    }
+
+    function toggleTheme() {
+      if (document.documentElement.classList.contains('dark')) {
+        document.documentElement.classList.remove('dark');
+        localStorage.setItem('theme', 'light');
+      } else {
+        document.documentElement.classList.add('dark');
+        localStorage.setItem('theme', 'dark');
+      }
+      setInitialThemeIcon();
+    }
+
+    function setActiveVehicleDateFilterButton(filterId) {
+      document.querySelectorAll('#vehicle-section .date-filter-btn').forEach(btn => btn.classList.remove('active'));
+      const activeBtn = document.getElementById(filterId.startsWith('vehicle-filter-') ? filterId : `vehicle-filter-${filterId}`);
+      if (activeBtn) activeBtn.classList.add('active');
+      else console.warn(`setActiveVehicleDateFilterButton: Button ID for '${filterId}' not found.`);
+    }
+
+    // --- DOMContentLoaded ---
+    document.addEventListener('DOMContentLoaded', async () => {
+      lucide.createIcons();
+      updateUserInfoDisplay();
+
+      themeToggleButton?.addEventListener('click', toggleTheme);
+      setInitialThemeIcon();
+
+      mobileMenuButton?.addEventListener('click', openMobileMenu);
+      sidebarCloseButton?.addEventListener('click', closeMobileMenu);
+      sidebarOverlay?.addEventListener('click', closeMobileMenu);
+
+      document.querySelectorAll('#sidebar nav a').forEach(link => {
+        link.addEventListener('click', () => { if (window.innerWidth < 768) closeMobileMenu(); });
+      });
+
+      document.getElementById('addVehicleModal').addEventListener('click', e => { if (e.target === e.currentTarget) closeAddVehicleModal(); });
+      document.getElementById('viewVehicleModal').addEventListener('click', e => { if (e.target === e.currentTarget) closeViewVehicleModal(); });
+      document.getElementById('genericConfirmModal').addEventListener('click', e => { if (e.target === e.currentTarget) closeGenericConfirmModal(); });
+      document.getElementById('genericConfirmModalConfirmBtn').addEventListener('click', async () => {
+        if (typeof currentConfirmAction === 'function') await currentConfirmAction(currentActionData);
+        closeGenericConfirmModal();
+      });
+      document.getElementById('infoStatusModal').addEventListener('click', e => { if (e.target === e.currentTarget || e.target.id === 'infoStatusModalOkButton' || e.target.closest('#infoStatusModalOkButton')) closeInfoStatusModal(); });
+
+      document.getElementById('global-logout-btn')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        localStorage.removeItem('accessToken');
+        openInfoStatusModal("Logged Out", "You have been successfully logged out.", "success", 2500);
+        updateUserInfoDisplay();
+        allFetchedVehiclesFromServer = [];
+        renderVehiclesTable();
+
+        document.getElementById('keyPerformanceInsightsList').innerHTML = `<li class="flex items-start space-x-2 text-gray-500"><i data-lucide="log-in" class="w-4 h-4 mt-0.5 shrink-0"></i><span>Please log in to see insights.</span></li>`;
+        document.getElementById('notificationsList').innerHTML = `<div class="flex items-start space-x-2 text-gray-500 p-2.5"><i data-lucide="log-in" class="w-5 h-5 mt-0.5 shrink-0"></i><p class="text-xs">Please log in to see alerts.</p></div>`;
+        document.getElementById('notificationCount').textContent = '0';
+        lucide.createIcons();
+      });
+      await initializeVehicleSection();
+    });
+
+    // --- Dashboard Widget Functions ---
+    async function fetchAndDisplayPerformanceInsights() {
+      const insightsList = document.getElementById('keyPerformanceInsightsList');
+      if (!insightsList) return;
+
+      insightsList.innerHTML = `<li class="flex items-start space-x-2"><i data-lucide="loader-2" class="w-4 h-4 text-gray-400 animate-spin mt-0.5 shrink-0"></i><span>Loading insights...</span></li>`;
+      lucide.createIcons();
+
+      const data = await apiRequest('/dashboard-data/performance-insights');
+      if (!data) {
+        insightsList.innerHTML = `<li class="flex items-start space-x-2 text-red-500"><i data-lucide="alert-circle" class="w-4 h-4 mt-0.5 shrink-0"></i><span>Failed to load insights.</span></li>`;
+        lucide.createIcons();
+        return;
+      }
+
+      let insightsHTML = '';
+
+      const { fuel_efficiency } = data;
+      if (fuel_efficiency) {
+        let trendIcon = 'minus';
+        let trendColor = 'text-gray-500 dark:text-gray-400';
+        let trendText = 'steady';
+
+        if (fuel_efficiency.trend === 'up') {
+          trendIcon = 'trending-up';
+          trendColor = 'text-green-500';
+          trendText = 'improving';
+        } else if (fuel_efficiency.trend === 'down') {
+          trendIcon = 'trending-down';
+          trendColor = 'text-red-500';
+          trendText = 'worsening';
+        }
+
+        const percentageText = fuel_efficiency.percentage_change !== null
+          ? `(${fuel_efficiency.percentage_change > 0 ? '+' : ''}${fuel_efficiency.percentage_change}%)`
+          : '(No prior data)';
+
+        insightsHTML += `
+              <li class="flex items-start space-x-2">
+                  <i data-lucide="droplet" class="w-4 h-4 text-blue-500 mt-0.5 shrink-0"></i>
+                  <div>
+                      <span>Fuel Efficiency is <span class="${trendColor} font-semibold">${trendText}</span>.</span>
+                      <span class="block text-gray-400 dark:text-gray-500 text-xs">Consumption vs last month ${percentageText}.</span>
+                  </div>
+              </li>`;
+      }
+
+      const { maintenance_compliance } = data;
+      if (maintenance_compliance) {
+        insightsHTML += `
+              <li class="flex items-start space-x-2">
+                  <i data-lucide="wrench" class="w-4 h-4 text-yellow-500 mt-0.5 shrink-0"></i>
+                  <div>
+                      <span><span class="font-semibold">${maintenance_compliance.total_maintenance_records}</span> maintenance records logged.</span>
+                      <span class="block text-gray-400 dark:text-gray-500 text-xs">Total historical maintenance tasks.</span>
+                  </div>
+              </li>`;
+      }
+
+      insightsList.innerHTML = insightsHTML || `<li>No performance data available.</li>`;
+      lucide.createIcons();
+    }
+
+    async function fetchAndDisplayAlerts() {
+      const alertsList = document.getElementById('notificationsList');
+      const notificationCountSpan = document.getElementById('notificationCount');
+      if (!alertsList || !notificationCountSpan) return;
+
+      alertsList.innerHTML = `<div class="flex items-start space-x-2 p-2.5 bg-gray-100 dark:bg-gray-700/50 rounded-lg"><i data-lucide="loader-2" class="w-5 h-5 text-gray-400 animate-spin mt-0.5 flex-shrink-0"></i><p class="text-xs text-gray-700 dark:text-gray-300">Loading alerts...</p></div>`;
+      lucide.createIcons();
+
+      const data = await apiRequest('/dashboard-data/alerts');
+      if (!data) {
+        alertsList.innerHTML = `<div class="flex items-start space-x-2 text-red-500"><i data-lucide="alert-circle" class="w-4 h-4 mt-0.5 shrink-0"></i><p class="text-xs">Failed to load alerts.</p></div>`;
+        notificationCountSpan.textContent = '0';
+        lucide.createIcons();
+        return;
+      }
+
+      notificationCountSpan.textContent = data.total_alerts || '0';
+      let alertsHTML = '';
+
+      const createAlertItemHTML = (alert, icon, colorClass) => {
+        if (!alert) return '';
+        return `
+              <div class="flex items-start space-x-2 p-2.5 bg-gray-100 dark:bg-gray-700/50 rounded-lg">
+                  <i data-lucide="${icon}" class="w-5 h-5 ${colorClass} mt-0.5 flex-shrink-0"></i>
+                  <div>
+                      <p class="text-xs font-semibold text-gray-800 dark:text-gray-200">${alert.plate_number}</p>
+                      <p class="text-xs text-gray-600 dark:text-gray-300">${alert.message}</p>
+                  </div>
+              </div>`;
+      };
+
+      alertsHTML += createAlertItemHTML(data.critical_panne, 'shield-alert', 'text-red-500');
+      alertsHTML += createAlertItemHTML(data.maintenance_alert, 'calendar-clock', 'text-blue-500');
+      alertsHTML += createAlertItemHTML(data.trip_alert, 'route', 'text-purple-500');
+
+      if (data.total_alerts === 0) {
+        alertsHTML = `<div class="flex items-center justify-center text-center p-4">
+                          <div class="text-gray-500 dark:text-gray-400">
+                             <i data-lucide="check-circle" class="w-8 h-8 mx-auto mb-2 text-green-500"></i>
+                             <p class="text-xs">All clear! No new alerts.</p>
+                          </div>
+                        </div>`;
+      }
+
+      alertsList.innerHTML = alertsHTML;
+      lucide.createIcons();
+    }
+
+    async function initializeDashboardWidgets() {
+      await Promise.all([
+        fetchAndDisplayPerformanceInsights(),
+        fetchAndDisplayAlerts()
+      ]);
+    }
+
+    // --- Date & Filter Helpers ---
+    function getISODateString(date) { return date.toISOString().split('T')[0]; }
+
+    function getDateRange(filterType) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      let sD = new Date(today);
+      let eD = new Date(today);
+      eD.setHours(23, 59, 59, 999);
+
+      switch (filterType) {
+        case 'today':
+          break;
+        case 'last7days':
+          sD.setDate(today.getDate() - 6);
+          break;
+        case 'last30days':
+          sD.setDate(today.getDate() - 29);
+          break;
+        case 'month':
+          sD = new Date(today.getFullYear(), today.getMonth(), 1);
+          break;
+        case 'year':
+          sD = new Date(today.getFullYear(), 0, 1);
+          break;
+        case 'all':
+          return { startDate: null, endDate: null };
+        default:
+          return { startDate: null, endDate: null };
+      }
+      return { startDate: getISODateString(sD), endDate: getISODateString(eD) };
+    }
+
+    // --- Main Initialization & Data Fetching ---
+    async function initializeVehicleSection() {
+      console.log("Initializing vehicle section...");
+      await fetchAndPopulateAllDropdowns();
+      const token = getAuthToken();
+      if (!token) {
+        console.warn("INITIALIZE: No auth token. Main vehicle list and widgets will not load.");
+        document.getElementById('vehiclesBody').innerHTML = `<tr><td colspan="9" class="text-center py-8 text-red-500">Please log in to view vehicles.</td></tr>`;
+        document.getElementById('vehiclesCount').textContent = '0 records';
+        document.getElementById('vehiclesPagination').innerHTML = '';
+        document.getElementById('keyPerformanceInsightsList').innerHTML = `<li class="flex items-start space-x-2 text-gray-500"><i data-lucide="log-in" class="w-4 h-4 mt-0.5 shrink-0"></i><span>Please log in to see insights.</span></li>`;
+        document.getElementById('notificationsList').innerHTML = `<div class="flex items-start space-x-2 text-gray-500 p-2.5"><i data-lucide="log-in" class="w-5 h-5 mt-0.5 shrink-0"></i><p class="text-xs">Please log in to see alerts.</p></div>`;
+        document.getElementById('notificationCount').textContent = '0';
+        lucide.createIcons();
+      } else {
+        console.log("INITIALIZE: Auth token found. Fetching main vehicle list and dashboard widgets.");
+        await fetchVehicles();
+        initializeDashboardWidgets();
+      }
+      document.getElementById('vehicleSearch').addEventListener('input', () => { currentVehiclePage = 1; fetchVehicles(); });
+      document.getElementById('addVehicleForm').addEventListener('submit', handleVehicleFormSubmit);
+      setActiveVehicleDateFilterButton('all');
+    }
+
+    async function fetchAndPopulateAllDropdowns() {
+      console.log("Fetching all independent dropdown data...");
+
+      // Updated endpoint paths to match your FastAPI routes
+      [
+        vehicleMakesData, vehicleModelsData, vehicleTypesData,
+        vehicleTransmissionsData, fuelTypesData
+      ] = await Promise.all([
+        apiRequest('/api/v1/vehicle-makes/?limit=200') || [],
+        apiRequest('/api/v1/vehicle-models/?limit=1000') || [],
+        apiRequest('/api/v1/vehicle-types/?limit=200') || [],
+        apiRequest('/api/v1/vehicle-transmissions/?limit=200') || [],
+        apiRequest('/api/v1/fuel-types/?limit=200') || []
+      ]);
+
+      populateAllDropdownsInForm();
+      console.log("All dropdown data fetched and populated.");
+    }
+
+    function populateSelectWithOptions(selectElementId, optionsArray, valueField, textField, placeholder = "Select Option") {
+      const selectElement = document.getElementById(selectElementId);
+      if (!selectElement) { console.error(`Populate: Element '${selectElementId}' not found.`); return; }
+
+      const currentValue = selectElement.value;
+      selectElement.innerHTML = `<option value="">${placeholder}</option>`;
+      selectElement.disabled = !Array.isArray(optionsArray) || optionsArray.length === 0;
+
+      if (Array.isArray(optionsArray)) {
+        optionsArray.forEach(opt => {
+          const option = document.createElement('option');
+          option.value = opt[valueField];
+          option.textContent = opt[textField] !== undefined ? opt[textField] : `(ID: ${opt[valueField]})`;
+          selectElement.appendChild(option);
+        });
+        if (optionsArray.some(opt => String(opt[valueField]) === String(currentValue))) {
+          selectElement.value = currentValue;
+        }
+      }
+    }
+
+    function populateAllDropdownsInForm() {
+      populateSelectWithOptions('vehicle_make_form', vehicleMakesData, 'id', 'vehicle_make', "Select Make");
+      populateSelectWithOptions('vehicle_model_form', vehicleModelsData, 'id', 'vehicle_model', "Select Model");
+      populateSelectWithOptions('vehicle_type_form', vehicleTypesData, 'id', 'vehicle_type', "Select Vehicle Type");
+      populateSelectWithOptions('vehicle_transmission_form', vehicleTransmissionsData, 'id', 'vehicle_transmission', "Select Transmission");
+      populateSelectWithOptions('vehicle_fuel_type_form', fuelTypesData, 'id', 'fuel_type', "Select Fuel Type");
+    }
+
+    async function fetchVehicles() {
+      const searchTerm = document.getElementById('vehicleSearch').value;
+      // Updated vehicle endpoint to match your FastAPI route
+      const data = await apiRequest(`/api/v1/vehicles/?limit=${vehiclesPerPage}&skip=${(currentVehiclePage - 1) * vehiclesPerPage}&search=${encodeURIComponent(searchTerm)}`);
+      if (data) { allFetchedVehiclesFromServer = data; } else { allFetchedVehiclesFromServer = []; }
+      renderVehiclesTable();
+    }
+
+    // --- Rendering Functions ---
+    function renderVehiclesTable() {
+      let recordsToDisplay = [...allFetchedVehiclesFromServer];
+      if (activeVehicleDateFilter !== 'all') {
+        let range = (activeVehicleDateFilter === 'custom' && customVehicleFilterStartDate && customVehicleFilterEndDate) ?
+          { startDate: customVehicleFilterStartDate, endDate: customVehicleFilterEndDate } :
+          getDateRange(activeVehicleDateFilter);
+        if (range.startDate && range.endDate) {
+          recordsToDisplay = recordsToDisplay.filter(r => {
+            const recordRegDate = getISODateString(new Date(r.registration_date));
+            return recordRegDate >= range.startDate && recordRegDate <= range.endDate;
+          });
+        }
+      }
+
+      const searchTermClient = document.getElementById('vehicleSearch').value.toLowerCase();
+      if (searchTermClient && recordsToDisplay.length > 0) {
+        recordsToDisplay = recordsToDisplay.filter(r =>
+          (r.id && r.id.toString().includes(searchTermClient)) ||
+          (r.plate_number && r.plate_number.toLowerCase().includes(searchTermClient)) ||
+          (r.vin && r.vin.toLowerCase().includes(searchTermClient)) ||
+          (vehicleMakesData.find(m => m.id === r.make)?.vehicle_make.toLowerCase().includes(searchTermClient)) ||
+          (vehicleModelsData.find(mod => mod.id === r.model)?.vehicle_model.toLowerCase().includes(searchTermClient)) ||
+          (r.year && r.year.toString().includes(searchTermClient)) ||
+          (r.status && r.status.toLowerCase().includes(searchTermClient))
+        );
+      }
+
+      const vehiclesBody = document.getElementById('vehiclesBody');
+      if (recordsToDisplay.length > 0) {
+        vehiclesBody.innerHTML = recordsToDisplay.map(r => {
+          const makeName = vehicleMakesData.find(m => m.id === r.make)?.vehicle_make || `MakeID ${r.make}`;
+          const modelName = vehicleModelsData.find(mod => mod.id === r.model)?.vehicle_model || `ModelID ${r.model}`;
+          const statusFormatted = (r.status || 'N/A').charAt(0).toUpperCase() + r.status.slice(1).replace(/_/g, ' ');
+          const statusColor = r.status === "available" ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200" :
+            r.status === "in_use" ? "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200" :
+              r.status === "in_repair" ? "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200" :
+                r.status === "sold" ? "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200" :
+                  "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200";
+
+          return `<tr class="border-b dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700/50" data-id="${r.id}">
+                    <td class="py-3 px-2">${r.id}</td> <td class="px-2">${makeName}</td> <td class="px-2">${modelName}</td>
+                    <td class="px-2">${r.year}</td> <td class="px-2">${r.plate_number}</td>
+                    <td class="px-2">${(r.mileage || 0).toLocaleString()}</td>
+                    <td class="px-2"><span class="px-2 py-1 text-xs rounded-full ${statusColor}">${statusFormatted}</span></td>
+                    <td class="px-2">${new Date(r.registration_date).toLocaleDateString()}</td>
+                    <td class="px-2 text-center whitespace-nowrap">
+                    <button onclick="openViewVehicleModal(${r.id})" class="text-green-600 dark:text-green-400 p-1" title="View"><i data-lucide="eye" class="w-4 h-4"></i></button>
+                    <button onclick="openEditVehicleModal(${r.id})" class="text-blue-600 dark:text-blue-400 p-1 ml-1" title="Edit"><i data-lucide="edit-2" class="w-4 h-4"></i></button>
+                    <button onclick="openConfirmDeleteVehicleModal(${r.id})" class="text-red-600 dark:text-red-400 p-1 ml-1" title="Delete"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                    </td></tr>`;
+        }).join('');
+      } else {
+        let message = "No vehicle records found.";
+        if (!getAuthToken()) { message = "Please log in to view vehicle records."; }
+        else if (getAuthToken() && allFetchedVehiclesFromServer.length === 0 && !searchTermClient) { message = "No vehicles in the system yet. Try adding one!"; }
+        else if (searchTermClient) { message = "No vehicles match your current search/filter criteria." }
+        vehiclesBody.innerHTML = `<tr><td colspan="9" class="text-center py-8 text-gray-500">${message}</td></tr>`;
+      }
+      lucide.createIcons();
+      const displayedRecordCount = recordsToDisplay.length;
+      const estimatedStart = displayedRecordCount > 0 ? (currentVehiclePage - 1) * vehiclesPerPage + 1 : 0;
+      const estimatedEnd = (currentVehiclePage - 1) * vehiclesPerPage + displayedRecordCount;
+      document.getElementById('vehiclesCount').textContent = `Showing ${estimatedStart} to ${estimatedEnd} of approx. ${estimatedEnd} records (current view)`;
+      renderVehiclePagination(allFetchedVehiclesFromServer.length);
+    }
+
+    function renderVehiclePagination(currentPageRecordCount) {
+      const paginationContainer = document.getElementById('vehiclesPagination');
+      paginationContainer.innerHTML = '';
+      if (currentVehiclePage === 1 && currentPageRecordCount < vehiclesPerPage) {
+        if (currentPageRecordCount === 0 && !getAuthToken()) { }
+        else if (currentPageRecordCount === 0) { }
+        if (currentPageRecordCount < vehiclesPerPage && !(currentVehiclePage > 1)) return;
+      }
+
+      const buttonClasses = "px-3 py-1.5 text-sm rounded-md transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-offset-1 dark:focus:ring-offset-gray-900 focus:ring-blue-500";
+      const inactiveClasses = "bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700";
+      const disabledClasses = "bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-400 dark:text-gray-500 cursor-not-allowed";
+
+      const prevButton = document.createElement('button');
+      prevButton.innerHTML = `<i data-lucide="chevron-left" class="w-4 h-4 inline-block mr-1"></i> Prev`;
+      prevButton.className = `${buttonClasses} ${currentVehiclePage === 1 ? disabledClasses : inactiveClasses}`;
+      if (currentVehiclePage > 1) {
+        prevButton.onclick = () => { currentVehiclePage--; fetchVehicles(); };
+      } else { prevButton.disabled = true; }
+      paginationContainer.appendChild(prevButton);
+
+      const pageInfo = document.createElement('span');
+      pageInfo.className = "px-3 py-1.5 text-sm text-gray-500 dark:text-gray-400";
+      pageInfo.textContent = `Page ${currentVehiclePage}`;
+      paginationContainer.appendChild(pageInfo);
+
+      const nextButton = document.createElement('button');
+      nextButton.innerHTML = `Next <i data-lucide="chevron-right" class="w-4 h-4 inline-block ml-1"></i>`;
+      const hasMore = currentPageRecordCount === vehiclesPerPage;
+      nextButton.className = `${buttonClasses} ${!hasMore ? disabledClasses : inactiveClasses}`;
+      if (hasMore) {
+        nextButton.onclick = () => { currentVehiclePage++; fetchVehicles(); };
+      } else { nextButton.disabled = true; }
+      paginationContainer.appendChild(nextButton);
+      lucide.createIcons();
+    }
+
+    // --- Modals & UI Actions ---
+    async function openAddVehicleModal() {
+      if (!getAuthToken()) { openInfoStatusModal("Authentication Required", "Please log in to add a vehicle.", "error"); return; }
+      vehicleToEditId = null;
+      document.getElementById('addVehicleForm').reset();
+      await fetchAndPopulateAllDropdowns();
+      document.getElementById('vehicleModalTitle').textContent = "Add New Vehicle";
+      document.getElementById('vehicleSubmitButton').innerHTML = `<i data-lucide="plus-circle" class="w-4 h-4"></i> Add Vehicle`;
+      lucide.createIcons();
+      document.getElementById('addVehicleModal').classList.remove('hidden');
+      document.body.style.overflow = 'hidden';
+    }
+
+    async function openEditVehicleModal(id) {
+      if (!getAuthToken()) { openInfoStatusModal("Authentication Required", "Please log in to edit a vehicle.", "error"); return; }
+      // Updated endpoint to match your FastAPI route
+      const recordToEdit = await apiRequest(`/api/v1/vehicles/${id}`);
+      if (!recordToEdit) { openInfoStatusModal("Error", "Could not fetch vehicle details for editing.", "error"); return; }
+
+      vehicleToEditId = id;
+      document.getElementById('addVehicleForm').reset();
+      await fetchAndPopulateAllDropdowns();
+
+      document.getElementById('vehicleModalTitle').textContent = "Edit Vehicle Record";
+      document.getElementById('vehicleSubmitButton').innerHTML = `<i data-lucide="save" class="w-4 h-4"></i> Save Changes`;
+
+      document.getElementById('vehicleId_form').value = recordToEdit.id;
+      document.getElementById('vehicle_make_form').value = recordToEdit.make;
+      document.getElementById('vehicle_model_form').value = recordToEdit.model;
+      document.getElementById('vehicle_year_form').value = recordToEdit.year;
+      document.getElementById('vehicle_plate_number_form').value = recordToEdit.plate_number;
+      document.getElementById('vehicle_vin_form').value = recordToEdit.vin;
+      document.getElementById('vehicle_color_form').value = recordToEdit.color;
+      document.getElementById('vehicle_mileage_form').value = recordToEdit.mileage;
+      document.getElementById('vehicle_engine_size_form').value = recordToEdit.engine_size;
+      document.getElementById('vehicle_type_form').value = recordToEdit.vehicle_type;
+      document.getElementById('vehicle_transmission_form').value = recordToEdit.vehicle_transmission;
+      document.getElementById('vehicle_fuel_type_form').value = recordToEdit.vehicle_fuel_type;
+      document.getElementById('vehicle_purchase_price_form').value = recordToEdit.purchase_price;
+      document.getElementById('vehicle_purchase_date_form').value = new Date(recordToEdit.purchase_date).toISOString().split('T')[0];
+
+      lucide.createIcons();
+      document.getElementById('addVehicleModal').classList.remove('hidden');
+      document.body.style.overflow = 'hidden';
+    }
+
+    function closeAddVehicleModal() {
+      document.getElementById('addVehicleModal').classList.add('hidden');
+      document.body.style.overflow = '';
+      vehicleToEditId = null;
+      document.getElementById('addVehicleForm').reset();
+    }
+
+    async function openViewVehicleModal(id) {
+      // Updated endpoint to match your FastAPI route
+      const record = await apiRequest(`/api/v1/vehicles/${id}`);
+      if (!record) { openInfoStatusModal("Error", "Could not fetch vehicle details for viewing.", "error"); return; }
+
+      document.getElementById('view-vehicle-id').textContent = record.id;
+      document.getElementById('view-vehicle-plate_number').textContent = record.plate_number;
+      document.getElementById('view-vehicle-make').textContent = vehicleMakesData.find(m => m.id === record.make)?.vehicle_make || `MakeID ${record.make}`;
+      document.getElementById('view-vehicle-model').textContent = vehicleModelsData.find(mod => mod.id === record.model)?.vehicle_model || `ModelID ${record.model}`;
+      document.getElementById('view-vehicle-year').textContent = record.year;
+      document.getElementById('view-vehicle-vin').textContent = record.vin;
+      document.getElementById('view-vehicle-color').textContent = record.color;
+      document.getElementById('view-vehicle-mileage').textContent = (record.mileage || 0).toLocaleString();
+      document.getElementById('view-vehicle-engine_size').textContent = (record.engine_size || 0).toFixed(1);
+      document.getElementById('view-vehicle-type').textContent = vehicleTypesData.find(vt => vt.id === record.vehicle_type)?.vehicle_type || `TypeID ${record.vehicle_type}`;
+      document.getElementById('view-vehicle-transmission').textContent = vehicleTransmissionsData.find(vt => vt.id === record.vehicle_transmission)?.vehicle_transmission || `TransID ${record.vehicle_transmission}`;
+      document.getElementById('view-vehicle-fuel_type').textContent = fuelTypesData.find(ft => ft.id === record.vehicle_fuel_type)?.fuel_type || `FuelID ${record.vehicle_fuel_type}`;
+      document.getElementById('view-vehicle-purchase_price').textContent = (record.purchase_price || 0).toFixed(2);
+      document.getElementById('view-vehicle-purchase_date').textContent = new Date(record.purchase_date).toLocaleDateString();
+      document.getElementById('view-vehicle-status').textContent = (record.status || 'N/A').charAt(0).toUpperCase() + record.status.slice(1).replace(/_/g, ' ');
+      document.getElementById('view-vehicle-registration_date').textContent = new Date(record.registration_date).toLocaleString();
+
+      document.getElementById('viewVehicleModal').classList.remove('hidden');
+      document.body.style.overflow = 'hidden';
+      lucide.createIcons();
+    }
+
+    function closeViewVehicleModal() { document.getElementById('viewVehicleModal').classList.add('hidden'); document.body.style.overflow = ''; }
+
+    function openGenericConfirmModal(title, message, confirmButtonText, confirmButtonIcon, onConfirmCallback, actionData = null) {
+      document.getElementById('genericConfirmModalTitle').textContent = title;
+      document.getElementById('genericConfirmModalMessage').textContent = message;
+
+      const confirmBtn = document.getElementById('genericConfirmModalConfirmBtn');
+      confirmBtn.innerHTML = `<i data-lucide="${confirmButtonIcon || 'check-circle'}" class="w-4 h-4"></i> ${confirmButtonText || 'Confirm'}`;
+      if (confirmButtonIcon === 'trash-2') {
+        confirmBtn.classList.remove('bg-blue-500', 'hover:bg-blue-600');
+        confirmBtn.classList.add('bg-red-500', 'hover:bg-red-600');
+      } else {
+        confirmBtn.classList.remove('bg-red-500', 'hover:bg-red-600');
+        confirmBtn.classList.add('bg-blue-500', 'hover:bg-blue-600');
+      }
+      lucide.createIcons();
+
+      currentConfirmAction = onConfirmCallback;
+      currentActionData = actionData;
+
+      document.getElementById('genericConfirmModal').classList.remove('hidden');
+      document.body.style.overflow = 'hidden';
+    }
+
+    function closeGenericConfirmModal() {
+      document.getElementById('genericConfirmModal').classList.add('hidden');
+      document.body.style.overflow = '';
+      currentConfirmAction = null;
+      currentActionData = null;
+    }
+
+    function openInfoStatusModal(title, message, type = 'success', autoCloseDelay = 3000) {
+      const modal = document.getElementById('infoStatusModal');
+      const titleEl = document.getElementById('infoStatusModalTitle');
+      const messageEl = document.getElementById('infoStatusModalMessage');
+      const iconContainer = document.getElementById('infoStatusModalIconContainer');
+      const okButton = document.getElementById('infoStatusModalOkButton');
+
+      titleEl.textContent = title;
+      messageEl.textContent = message;
+
+      if (infoStatusModalTimeout) clearTimeout(infoStatusModalTimeout);
+
+      iconContainer.innerHTML = '';
+      if (type === 'success') {
+        iconContainer.className = 'mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-green-100 mb-4';
+        iconContainer.innerHTML = `<i data-lucide="check" class="h-6 w-6 text-green-600"></i>`;
+        okButton.className = 'inline-flex justify-center w-full rounded-md border border-transparent shadow-sm px-4 py-2 bg-green-600 text-base font-medium text-white hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 sm:text-sm';
+      } else if (type === 'error') {
+        iconContainer.className = 'mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100 mb-4';
+        iconContainer.innerHTML = `<i data-lucide="x-circle" class="h-6 w-6 text-red-600"></i>`;
+        okButton.className = 'inline-flex justify-center w-full rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 sm:text-sm';
+      } else {
+        iconContainer.className = 'mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-blue-100 mb-4';
+        iconContainer.innerHTML = `<i data-lucide="info" class="h-6 w-6 text-blue-600"></i>`;
+        okButton.className = 'inline-flex justify-center w-full rounded-md border border-transparent shadow-sm px-4 py-2 bg-blue-600 text-base font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:text-sm';
+      }
+      lucide.createIcons();
+
+      modal.classList.remove('hidden');
+      document.body.style.overflow = 'hidden';
+
+      if (autoCloseDelay > 0) {
+        infoStatusModalTimeout = setTimeout(() => { closeInfoStatusModal(); }, autoCloseDelay);
+      }
+    }
+
+    function closeInfoStatusModal() {
+      if (infoStatusModalTimeout) { clearTimeout(infoStatusModalTimeout); infoStatusModalTimeout = null; }
+      document.getElementById('infoStatusModal').classList.add('hidden');
+      document.body.style.overflow = '';
+    }
+
+    async function handleVehicleFormSubmit(event) {
+      event.preventDefault();
+      if (!getAuthToken()) { openInfoStatusModal("Authentication Required", "Please log in to submit the form.", "error"); return; }
+
+      const purchaseDateValue = document.getElementById('vehicle_purchase_date_form').value;
+      const vehicleYearValue = parseInt(document.getElementById('vehicle_year_form').value);
+      const currentYear = new Date().getFullYear();
+      const today = new Date(); today.setHours(0, 0, 0, 0);
+
+      if (!purchaseDateValue) { openInfoStatusModal("Validation Error", "Purchase date is required.", "error"); return; }
+      const purchaseDateObj = new Date(purchaseDateValue + "T00:00:00");
+
+      if (purchaseDateObj > today) { openInfoStatusModal("Validation Error", "Purchase date cannot be in the future.", "error"); return; }
+      if (vehicleYearValue > currentYear) { openInfoStatusModal("Validation Error", `Vehicle year (${vehicleYearValue}) cannot be greater than current year (${currentYear}).`, "error"); return; }
+      if (vehicleYearValue < 1900) { openInfoStatusModal("Validation Error", `Vehicle year (${vehicleYearValue}) is invalid. Please enter a valid year.`, "error"); return; }
+
+      const vehicleData = {
+        make: parseInt(document.getElementById('vehicle_make_form').value),
+        model: parseInt(document.getElementById('vehicle_model_form').value),
+        year: vehicleYearValue,
+        plate_number: document.getElementById('vehicle_plate_number_form').value.trim(),
+        mileage: parseFloat(document.getElementById('vehicle_mileage_form').value) || 0.0,
+        engine_size: parseFloat(document.getElementById('vehicle_engine_size_form').value),
+        vehicle_type: parseInt(document.getElementById('vehicle_type_form').value),
+        vehicle_transmission: parseInt(document.getElementById('vehicle_transmission_form').value),
+        vehicle_fuel_type: parseInt(document.getElementById('vehicle_fuel_type_form').value),
+        vin: document.getElementById('vehicle_vin_form').value.trim(),
+        color: document.getElementById('vehicle_color_form').value.trim(),
+        purchase_price: parseFloat(document.getElementById('vehicle_purchase_price_form').value),
+        purchase_date: purchaseDateObj.toISOString(),
+      };
+
+      if (isNaN(vehicleData.make) || isNaN(vehicleData.model) || !vehicleData.year || !vehicleData.plate_number ||
+        isNaN(vehicleData.engine_size) || isNaN(vehicleData.vehicle_type) || isNaN(vehicleData.vehicle_transmission) ||
+        isNaN(vehicleData.vehicle_fuel_type) || !vehicleData.vin || !vehicleData.color ||
+        isNaN(vehicleData.purchase_price) || !vehicleData.purchase_date) {
+        openInfoStatusModal("Validation Error", "Please fill all required Vehicle fields correctly. Ensure Make and Model are selected.", "error"); return;
+      }
+
+      const actionType = vehicleToEditId ? "update" : "add";
+      const confirmTitle = vehicleToEditId ? "Confirm Update" : "Confirm Add Vehicle";
+      const confirmMessage = `Are you sure you want to ${actionType} this vehicle${vehicleToEditId ? "'s details" : ""}?`;
+      const confirmBtnText = vehicleToEditId ? "Update" : "Add Vehicle";
+      const confirmBtnIcon = vehicleToEditId ? "save" : "plus-circle";
+
+      openGenericConfirmModal(
+        confirmTitle, confirmMessage, confirmBtnText, confirmBtnIcon,
+        async (dataForAction) => {
+          let result;
+          // Updated endpoints to match your FastAPI routes
+          if (vehicleToEditId) {
+            result = await apiRequest(`/api/v1/vehicles/${vehicleToEditId}`, 'PUT', dataForAction);
+          }
+          else {
+            result = await apiRequest('/api/v1/vehicles/', 'POST', dataForAction);
+          }
+
+          if (result) {
+            openInfoStatusModal("Success", `Vehicle record ${vehicleToEditId ? 'updated' : 'added'} successfully!`, "success");
+            closeAddVehicleModal();
+            currentVehiclePage = vehicleToEditId ? currentVehiclePage : 1;
+            await fetchVehicles();
+          }
+        },
+        vehicleData
+      );
+    }
+
+    function openConfirmDeleteVehicleModal(id) {
+      if (!getAuthToken()) { openInfoStatusModal("Authentication Required", "Please log in to delete a vehicle.", "error"); return; }
+      vehicleToDeleteId = id;
+
+      openGenericConfirmModal(
+        "Confirm Deletion",
+        "Are you sure you want to permanently delete this vehicle record? This action cannot be undone.",
+        "Delete",
+        "trash-2",
+        async () => {
+          if (!vehicleToDeleteId) return;
+          // Updated endpoint to match your FastAPI route
+          const result = await apiRequest(`/api/v1/vehicles/${vehicleToDeleteId}`, 'DELETE');
+          if (result) {
+            openInfoStatusModal("Success", "Vehicle record deleted successfully!", "success");
+            if (allFetchedVehiclesFromServer.length === 1 && currentVehiclePage > 1) {
+              currentVehiclePage--;
+            }
+            await fetchVehicles();
+          }
+          vehicleToDeleteId = null;
+        }
+      );
+    }
+
+    // --- Filter & Export ---
+    function applyVehicleDateFilter(filterType) {
+      activeVehicleDateFilter = filterType;
+      customVehicleFilterStartDate = null;
+      customVehicleFilterEndDate = null;
+      document.getElementById('vehicleCustomDateRange').classList.add('hidden');
+      setActiveVehicleDateFilterButton(filterType);
+      currentVehiclePage = 1;
+      fetchVehicles();
+    }
+
+    function toggleVehicleCustomDateRange() {
+      document.getElementById('vehicleCustomDateRange').classList.toggle('hidden');
+      if (!document.getElementById('vehicleCustomDateRange').classList.contains('hidden')) {
+        setActiveVehicleDateFilterButton('vehicle-filter-custom-btn');
+      } else if (activeVehicleDateFilter === 'custom') {
+        applyVehicleDateFilter('all');
+      }
+    }
+
+    function applyVehicleCustomDateFilter() {
+      const startDate = document.getElementById('vehicleCustomStartDate').value;
+      const endDate = document.getElementById('vehicleCustomEndDate').value;
+      if (!startDate || !endDate) { openInfoStatusModal("Input Error", "Please select both start and end dates.", "error"); return; }
+      if (new Date(startDate) > new Date(endDate)) { openInfoStatusModal("Input Error", "Start date cannot be after end date.", "error"); return; }
+
+      activeVehicleDateFilter = 'custom';
+      customVehicleFilterStartDate = startDate;
+      customVehicleFilterEndDate = endDate;
+      setActiveVehicleDateFilterButton('vehicle-filter-custom-btn');
+      currentVehiclePage = 1;
+      fetchVehicles();
+    }
+
+    function getExportData() {
+      let recordsToExport = [...allFetchedVehiclesFromServer];
+      if (activeVehicleDateFilter !== 'all') {
+        let range = (activeVehicleDateFilter === 'custom' && customVehicleFilterStartDate && customVehicleFilterEndDate)
+          ? { startDate: customVehicleFilterStartDate, endDate: customVehicleFilterEndDate }
+          : getDateRange(activeVehicleDateFilter);
+        if (range.startDate && range.endDate) {
+          recordsToExport = recordsToExport.filter(r => {
+            const recordRegDate = getISODateString(new Date(r.registration_date));
+            return recordRegDate >= range.startDate && recordRegDate <= range.endDate;
+          });
+        }
+      }
+      const searchTerm = document.getElementById('vehicleSearch').value.toLowerCase();
+      if (searchTerm) {
+        recordsToExport = recordsToExport.filter(r =>
+          (r.id && r.id.toString().includes(searchTerm)) ||
+          (r.plate_number && r.plate_number.toLowerCase().includes(searchTerm)) ||
+          (r.vin && r.vin.toLowerCase().includes(searchTerm)) ||
+          (vehicleMakesData.find(m => m.id === r.make)?.vehicle_make.toLowerCase().includes(searchTerm)) ||
+          (vehicleModelsData.find(mod => mod.id === r.model)?.vehicle_model.toLowerCase().includes(searchTerm)) ||
+          (r.year && r.year.toString().includes(searchTerm)) ||
+          (r.status && r.status.toLowerCase().includes(searchTerm))
+        );
+      }
+      return recordsToExport;
+    }
+
+    function exportVehiclesExcel() {
+      if (!getAuthToken() && allFetchedVehiclesFromServer.length === 0) {
+        openInfoStatusModal("Export Error", "Please log in to export vehicle data, or ensure data is loaded.", "error"); return;
+      }
+      const recordsToExport = getExportData();
+      if (recordsToExport.length === 0) { openInfoStatusModal("Export Info", "No data to export based on current filters.", "info"); return; }
+
+      const wsData = recordsToExport.map(r => ({
+        'ID': r.id,
+        'Make': vehicleMakesData.find(m => m.id === r.make)?.vehicle_make || `MakeID ${r.make}`,
+        'Model': vehicleModelsData.find(mod => mod.id === r.model)?.vehicle_model || `ModelID ${r.model}`,
+        'Year': r.year, 'Plate #': r.plate_number, 'VIN': r.vin, 'Color': r.color,
+        'Mileage': r.mileage, 'Engine (L)': r.engine_size,
+        'Type': vehicleTypesData.find(vt => vt.id === r.vehicle_type)?.vehicle_type || `TypeID ${r.vehicle_type}`,
+        'Transmission': vehicleTransmissionsData.find(vt => vt.id === r.vehicle_transmission)?.vehicle_transmission || `TransID ${r.vehicle_transmission}`,
+        'Fuel Type': fuelTypesData.find(ft => ft.id === r.vehicle_fuel_type)?.fuel_type || `FuelID ${r.vehicle_fuel_type}`,
+        'Purchase Price': r.purchase_price,
+        'Purchase Date': new Date(r.purchase_date).toLocaleDateString(),
+        'Status': (r.status || '').replace('_', ' '),
+        'Registered At': new Date(r.registration_date).toLocaleString()
+      }));
+      const ws = XLSX.utils.json_to_sheet(wsData);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Vehicles");
+      XLSX.writeFile(wb, "vehicles_export.xlsx");
+    }
+
+    function exportVehiclesPDF() {
+      if (!getAuthToken() && allFetchedVehiclesFromServer.length === 0) {
+        openInfoStatusModal("Export Error", "Please log in to export vehicle data, or ensure data is loaded.", "error"); return;
+      }
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF('l');
+      doc.setFontSize(18); doc.text('Vehicle Records', 14, 15);
+
+      const recordsToExport = getExportData();
+      if (recordsToExport.length === 0) { openInfoStatusModal("Export Info", "No data to export based on current filters.", "info"); return; }
+
+      const headers = [['ID', 'Make', 'Model', 'Year', 'Plate #', 'Mileage', 'Status', 'Registered']];
+      const data = recordsToExport.map(r => [
+        r.id,
+        vehicleMakesData.find(m => m.id === r.make)?.vehicle_make || `MakeID ${r.make}`,
+        vehicleModelsData.find(mod => mod.id === r.model)?.vehicle_model || `ModelID ${r.model}`,
+        r.year, r.plate_number, (r.mileage || 0).toLocaleString(),
+        (r.status || '').replace('_', ' '), new Date(r.registration_date).toLocaleDateString()
+      ]);
+
+      doc.autoTable({
+        head: headers, body: data, startY: 25, theme: 'grid',
+        headStyles: { fillColor: [59, 130, 246], textColor: 255 },
+        columnStyles: { 0: { cellWidth: 10 }, 4: { cellWidth: 30 }, 5: { cellWidth: 25 } }
+      });
+      doc.save('vehicles_export.pdf');
+    }
+  </script>
+</body>
+
+</html>

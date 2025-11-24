@@ -1,0 +1,945 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dashboard - User Management</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.23/jspdf.plugin.autotable.min.js"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script>
+    tailwind.config = { darkMode: 'class' }
+  </script>
+  <style>
+    .modal {
+      transition: opacity 0.3s ease-in-out, visibility 0.3s ease-in-out;
+    }
+
+    .modal.hidden {
+      visibility: hidden;
+      opacity: 0;
+    }
+
+    .modal:not(.hidden) {
+      visibility: visible;
+      opacity: 1;
+    }
+
+    .dark .modal-content {
+      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 10px 10px -5px rgba(0, 0, 0, 0.2);
+    }
+
+    .date-filter-btn.active {
+      background-color: #3b82f6;
+      color: white;
+    }
+
+    .dark .date-filter-btn.active {
+      background-color: #60a5fa;
+    }
+
+    .view-detail-label {
+      font-weight: 500;
+      color: #4b5563;
+    }
+
+    .dark .view-detail-label {
+      color: #d1d5db;
+    }
+
+    .view-detail-value {
+      color: #1f2937;
+    }
+
+    .dark .view-detail-value {
+      color: #f9fafb;
+    }
+
+    #loading-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.7);
+      color: white;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      z-index: 1000;
+      visibility: hidden;
+      opacity: 0;
+      transition: visibility 0s, opacity 0.3s linear;
+    }
+
+    #loading-overlay.visible {
+      visibility: visible;
+      opacity: 1;
+    }
+
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border-width: 0;
+    }
+  </style>
+</head>
+
+<body class="bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-white">
+
+  <!-- Loading Overlay -->
+  <div id="loading-overlay">
+    <i data-lucide="loader-2" class="w-12 h-12 animate-spin"></i>
+    <p class="mt-4 text-lg">Loading...</p>
+  </div>
+
+  <!-- Main application wrapper -->
+  <div class="flex h-screen">
+    <!-- Sidebar (Left) -->
+    <aside id="sidebar"
+      class="fixed inset-y-0 left-0 z-40 w-64 bg-white dark:bg-gray-800/95 backdrop-blur-sm p-4 space-y-6 shadow-lg transform -translate-x-full transition-transform duration-300 ease-in-out md:relative md:translate-x-0 md:shadow-lg md:border-r dark:border-gray-700 flex flex-col flex-shrink-0">
+      <div class="flex justify-between items-center">
+        <div class="text-2xl font-bold flex items-center space-x-2 text-primary dark:text-primary-light">
+          <i data-lucide="command" class="w-7 h-7"></i><span>FleetDash</span>
+        </div>
+        <button id="sidebar-close-button"
+          class="md:hidden text-gray-700 dark:text-gray-300 p-1 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700">
+          <i data-lucide="x" class="w-6 h-6"></i>
+        </button>
+      </div>
+      <nav class="flex-1 overflow-y-auto">
+        <ul class="space-y-2">
+          <li
+            class="flex items-center space-x-3 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 p-2 rounded-md transition-colors">
+            <i data-lucide="layout-dashboard" class="w-5 h-5"></i><a href="dashboard.html">Dashboard</a>
+          </li>
+          <li
+            class="flex items-center space-x-3 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 p-2 rounded-md transition-colors">
+            <i data-lucide="pie-chart" class="w-5 h-5"></i><a href="analytics.html">Analytics</a>
+          </li>
+          <li
+            class="flex items-center space-x-3 text-blue-600 dark:text-blue-400 font-semibold bg-blue-50 dark:bg-gray-700 p-2 rounded-md transition-colors">
+            <i data-lucide="users" class="w-5 h-5"></i><a href="users.html">Users</a>
+          </li>
+          <li
+            class="flex items-center space-x-3 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 p-2 rounded-md transition-colors">
+            <i data-lucide="alert-triangle" class="w-5 h-5"></i><a href="panne.html">Panne</a>
+          </li>
+          <li
+            class="flex items-center space-x-3 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 p-2 rounded-md transition-colors">
+            <i data-lucide="car" class="w-5 h-5"></i><a href="vehicle.html">Vehicule</a>
+          </li>
+          <li
+            class="flex items-center space-x-3 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 p-2 rounded-md transition-colors">
+            <i data-lucide="wrench" class="w-5 h-5"></i><a href="reparation.html">Reparation</a>
+          </li>
+          <li
+            class="flex items-center space-x-3 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 p-2 rounded-md transition-colors">
+            <i data-lucide="droplet" class="w-5 h-5"></i><a href="fuel.html">Carburant</a>
+          </li>
+          <li
+            class="flex items-center space-x-3 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 p-2 rounded-md transition-colors">
+            <i data-lucide="settings" class="w-5 h-5"></i><a href="maintenance.html">Maintenance</a>
+          </li>
+          <li
+            class="flex items-center space-x-3 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 p-2 rounded-md transition-colors">
+            <i data-lucide="route" class="w-5 h-5"></i><a href="trip.html">Voyage</a>
+          </li>
+        </ul>
+      </nav>
+      <div class="pt-4 border-t border-gray-200 dark:border-gray-700/50 mt-auto">
+        <a href="#" id="global-logout-btn"
+          class="flex items-center space-x-3 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700/40 p-2.5 rounded-lg transition-colors">
+          <i data-lucide="log-out" class="w-5 h-5"></i><span>Logout</span>
+        </a>
+      </div>
+    </aside>
+
+    <!-- Overlay for mobile menu -->
+    <div id="sidebar-overlay" class="fixed inset-0 bg-black bg-opacity-50 z-30 hidden md:hidden"></div>
+
+    <!-- Content Area Wrapper -->
+    <div class="flex-1 flex flex-col overflow-hidden">
+
+      <!-- Header -->
+      <header class="bg-white dark:bg-gray-800 shadow p-3 flex justify-between items-center flex-shrink-0 h-16">
+        <button id="mobile-menu-button" class="md:hidden text-gray-700 dark:text-gray-300 focus:outline-none p-2">
+          <i data-lucide="menu" class="w-6 h-6"></i>
+        </button>
+        <div class="text-lg font-bold text-primary dark:text-primary-light md:hidden">FleetDash</div>
+        <div class="hidden md:block text-xl font-semibold text-gray-700 dark:text-gray-200">User Management</div>
+        <div class="flex items-center space-x-3">
+          <button id="theme-toggle-header"
+            class="text-xl p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300"></button>
+          <div class="hidden md:flex items-center space-x-2">
+            <div class="text-sm font-semibold" id="userDisplayNameHeader">User</div>
+            <div class="text-xs text-gray-500 dark:text-gray-400" id="currentUserRoleDisplayHeader">Role</div>
+          </div>
+        </div>
+      </header>
+
+      <!-- Main scrollable content area -->
+      <div class="flex-1 flex overflow-hidden">
+        <main class="flex-1 overflow-y-auto p-6">
+          <section id="user-section" class="bg-white dark:bg-gray-800 p-4 rounded-xl shadow mb-6">
+            <div class="flex flex-col sm:flex-row justify-between items-center mb-4 gap-3">
+              <div class="flex flex-wrap gap-2 items-center">
+                <button onclick="openAddUserModal()"
+                  class="bg-blue-500 text-white px-3 py-2 rounded-lg hover:bg-blue-600 flex items-center gap-1 text-sm shadow-sm">
+                  <i data-lucide="user-plus" class="w-4 h-4"></i> Add User
+                </button>
+                <input type="text" id="userSearch" placeholder="Search (matricule, name, email)..."
+                  class="border dark:border-gray-600 rounded-lg px-3 py-2 text-sm text-black dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent w-full sm:w-auto">
+              </div>
+              <div class="flex flex-wrap gap-2 items-center">
+                <button onclick="exportUsersExcel()"
+                  class="bg-green-500 text-white px-3 py-2 rounded-lg hover:bg-green-600 text-sm shadow-sm">📄
+                  Excel</button>
+                <button onclick="exportUsersPDF()"
+                  class="bg-red-500 text-white px-3 py-2 rounded-lg hover:bg-red-600 text-sm shadow-sm">🧾 PDF</button>
+              </div>
+            </div>
+            <div class="mb-4 flex flex-wrap items-center gap-2">
+              <span class="text-sm font-medium mr-2">Filter by Creation Date:</span>
+              <button id="user-filter-today"
+                class="date-filter-btn px-3 py-1.5 text-sm border dark:border-gray-600 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700">Today</button>
+              <button id="user-filter-last7"
+                class="date-filter-btn px-3 py-1.5 text-sm border dark:border-gray-600 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700">Last
+                7 Days</button>
+              <button id="user-filter-last30"
+                class="date-filter-btn px-3 py-1.5 text-sm border dark:border-gray-600 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700">Last
+                30 Days</button>
+              <button id="user-filter-all"
+                class="date-filter-btn px-3 py-1.5 text-sm border dark:border-gray-600 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 active">All
+                Time</button>
+              <button id="user-filter-custom-btn"
+                class="date-filter-btn px-3 py-1.5 text-sm border dark:border-gray-600 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700">Custom
+                Range</button>
+            </div>
+            <div id="userCustomDateRange"
+              class="mb-4 hidden items-center gap-2 p-3 border dark:border-gray-700 rounded-md bg-gray-50 dark:bg-gray-800/50">
+              <input type="date" id="userCustomStartDate"
+                class="border dark:border-gray-600 rounded-md px-2 py-1.5 text-sm text-black dark:bg-gray-700 dark:text-white">
+              <span class="text-sm">to</span>
+              <input type="date" id="userCustomEndDate"
+                class="border dark:border-gray-600 rounded-md px-2 py-1.5 text-sm text-black dark:bg-gray-700 dark:text-white">
+              <button id="applyCustomDateFilterButton"
+                class="bg-blue-500 text-white px-3 py-1.5 text-sm rounded-md hover:bg-blue-600">Apply</button>
+            </div>
+
+            <div class="overflow-x-auto">
+              <table id="usersTable" class="w-full text-left text-sm">
+                <thead>
+                  <tr class="border-b dark:border-gray-700">
+                    <th class="py-3 px-2 font-semibold">ID</th>
+                    <th class="px-2 font-semibold">Full Name</th>
+                    <th class="px-2 font-semibold">Email</th>
+                    <th class="px-2 font-semibold">Matricule</th>
+                    <th class="px-2 font-semibold">Role</th>
+                    <th class="px-2 font-semibold">Status</th>
+                    <th class="px-2 font-semibold">Created At</th>
+                    <th class="px-2 font-semibold text-center">Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="usersBody"></tbody>
+              </table>
+            </div>
+            <div class="mt-6 flex flex-col sm:flex-row justify-between items-center space-y-3 sm:space-y-0">
+              <div class="text-sm text-gray-600 dark:text-gray-400" id="usersCount"></div>
+              <div class="flex items-center space-x-1" id="usersPagination"></div>
+            </div>
+          </section>
+        </main>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODALS -->
+  <!-- Add/Edit User Modal -->
+  <div id="addUserModal"
+    class="modal fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50 hidden">
+    <div
+      class="modal-content bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+      <div class="p-6">
+        <div class="flex justify-between items-center mb-6">
+          <div>
+            <h3 class="text-xl font-bold text-gray-800 dark:text-white" id="userModalTitle">Add New User</h3>
+            <p class="text-sm text-gray-500 dark:text-gray-400">Fill in the user details below</p>
+          </div>
+          <button onclick="closeAddUserModal()" class="p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700">
+            <i data-lucide="x" class="w-5 h-5 text-gray-500 dark:text-gray-400"></i>
+          </button>
+        </div>
+        <form id="addUserForm" class="space-y-4">
+          <input type="hidden" id="userId_form">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label for="user_first_name_form"
+                class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">First Name</label>
+              <input type="text" id="user_first_name_form" required
+                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                placeholder="e.g., John">
+            </div>
+            <div>
+              <label for="user_last_name_form"
+                class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Last Name</label>
+              <input type="text" id="user_last_name_form" required
+                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                placeholder="e.g., Doe">
+            </div>
+          </div>
+          <div>
+            <label for="user_email_form"
+              class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Email</label>
+            <input type="email" id="user_email_form" required
+              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+              placeholder="user@example.com">
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label for="user_matricule_form"
+                class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Matricule</label>
+              <input type="text" id="user_matricule_form" required
+                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                placeholder="e.g., AB0123CD">
+            </div>
+            <div>
+              <label for="user_telephone_form"
+                class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Telephone</label>
+              <input type="tel" id="user_telephone_form" required
+                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                placeholder="+257 79 001 002">
+            </div>
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label for="user_service_id_form"
+                class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Service/Department</label>
+              <select id="user_service_id_form" required
+                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"></select>
+            </div>
+            <div>
+              <label for="user_role_id_form"
+                class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Role</label>
+              <select id="user_role_id_form" required
+                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"></select>
+            </div>
+          </div>
+          <div>
+            <label for="user_status_form"
+              class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Status</label>
+            <select id="user_status_form" required
+              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"></select>
+          </div>
+          <div>
+            <label for="user_password_form"
+              class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Password</label>
+            <input type="password" id="user_password_form"
+              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+              placeholder="Enter new password">
+            <p id="passwordHint" class="text-xs text-gray-500 dark:text-gray-400 mt-1 hidden">Leave blank to keep
+              current password.</p>
+          </div>
+          <div class="flex justify-end gap-3 pt-4">
+            <button type="button" onclick="closeAddUserModal()"
+              class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700">Cancel</button>
+            <button type="submit" id="userSubmitButton"
+              class="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg flex items-center gap-2">
+              <i data-lucide="plus-circle" class="w-4 h-4"></i> Add User
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+  <!-- View User Record Modal -->
+  <div id="viewUserModal"
+    class="modal fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50 hidden">
+    <div class="modal-content bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-lg">
+      <div class="p-6">
+        <div class="flex justify-between items-center mb-6">
+          <h3 class="text-xl font-bold text-gray-800 dark:text-white">User Details</h3>
+          <button onclick="closeViewUserModal()" class="p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700">
+            <i data-lucide="x" class="w-5 h-5 text-gray-500 dark:text-gray-400"></i>
+          </button>
+        </div>
+        <div id="viewUserDetails" class="space-y-3 text-sm">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-3">
+            <div><span class="view-detail-label">User ID:</span> <span id="view-user-id"
+                class="view-detail-value"></span></div>
+            <div><span class="view-detail-label">Full Name:</span> <span id="view-user-full_name"
+                class="view-detail-value"></span></div>
+            <div><span class="view-detail-label">Email:</span> <span id="view-user-email"
+                class="view-detail-value"></span></div>
+            <div><span class="view-detail-label">Matricule:</span> <span id="view-user-matricule"
+                class="view-detail-value"></span></div>
+            <div><span class="view-detail-label">Telephone:</span> <span id="view-user-telephone"
+                class="view-detail-value"></span></div>
+            <div><span class="view-detail-label">Role:</span> <span id="view-user-role"
+                class="view-detail-value"></span></div>
+            <div><span class="view-detail-label">Status:</span> <span id="view-user-status"
+                class="view-detail-value"></span></div>
+            <div><span class="view-detail-label">Created At:</span> <span id="view-user-created_at"
+                class="view-detail-value"></span></div>
+          </div>
+        </div>
+        <div class="flex justify-end pt-6">
+          <button type="button" onclick="closeViewUserModal()"
+            class="px-4 py-2 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 rounded-lg">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <!-- Confirmation Modal for User Deletion -->
+  <div id="confirmDeleteUserModal"
+    class="modal fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50 hidden">
+    <div class="modal-content bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-md">
+      <div class="p-6">
+        <div class="flex justify-between items-center mb-6">
+          <div>
+            <h3 class="text-xl font-bold text-red-600 dark:text-red-400">Confirm Deletion</h3>
+            <p class="text-sm text-gray-500 dark:text-gray-400">Are you sure you want to delete this user?</p>
+          </div>
+          <button onclick="closeConfirmDeleteUserModal()"
+            class="p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700"><i data-lucide="x"
+              class="w-5 h-5 text-gray-500 dark:text-gray-400"></i></button>
+        </div>
+        <p class="text-sm text-gray-600 dark:text-gray-300 mb-6">This action is permanent and cannot be undone. All data
+          associated with this user may be lost.</p>
+        <div class="flex justify-end gap-3 pt-4">
+          <button onclick="closeConfirmDeleteUserModal()"
+            class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700">Cancel</button>
+          <button id="confirmDeleteUserBtn"
+            class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg flex items-center gap-2"><i
+              data-lucide="trash-2" class="w-4 h-4"></i> Delete</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Generic Success/Confirmation Modal -->
+  <div id="operationSuccessModal"
+    class="modal fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black bg-opacity-60 hidden">
+    <div class="modal-content bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-sm text-center">
+      <div class="p-6 space-y-4">
+        <div id="successModalIconContainer"
+          class="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-green-100 dark:bg-green-700/30">
+        </div>
+        <h3 id="successModalTitle" class="text-xl font-semibold text-gray-900 dark:text-white">Success!</h3>
+        <p id="successModalMessage" class="text-sm text-gray-600 dark:text-gray-400">Operation completed.</p>
+        <button id="successModalOkButton" onclick="closeOperationSuccessModalAndRefresh()"
+          class="w-full bg-blue-500 hover:bg-blue-600 text-white font-medium py-2.5 px-4 rounded-lg">OK</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // --- Global Constants & Variables ---
+    const API_BASE_URL = '';
+    const USER_API_ENDPOINT = '/api/v1/users/';
+    const ROLE_API_ENDPOINT = '/api/v1/roles/';
+    const SERVICE_API_ENDPOINT = '/api/v1/services/';
+    const LOGIN_PAGE_URL = '/login.html';
+
+    let allFetchedUsers = [];
+    const usersPerPage = 10;
+    let currentUserPage = 1;
+    let userToEditId = null;
+    let userToDeleteId = null;
+    let activeUserDateFilter = 'all';
+    let customUserFilterStartDate = null;
+    let customUserFilterEndDate = null;
+    const userStatuses = ["active", "inactive", "pending", "suspended"];
+
+    // --- Core API & Auth Logic ---
+    function getAuthToken() {
+      const token = localStorage.getItem('accessToken');
+      if (!token) {
+        alert("Authentication error. Please log in again.");
+        window.location.href = LOGIN_PAGE_URL;
+        return null;
+      }
+      return token;
+    }
+
+    // --- NEW, ROBUST API REQUEST HELPER ---
+    async function makeApiRequest(url, method = 'GET', body = null) {
+      const loadingOverlay = document.getElementById('loading-overlay');
+      if (loadingOverlay) loadingOverlay.classList.add('visible');
+
+      const token = getAuthToken();
+      if (!token) {
+        if (loadingOverlay) loadingOverlay.classList.remove('visible');
+        return null; // Stop execution if no token
+      }
+
+      const headers = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` };
+      const config = { method, headers };
+      if (body) config.body = JSON.stringify(body);
+
+      try {
+        const response = await fetch(url, config);
+
+        // Handle non-JSON responses for auth errors
+        if (response.status === 401) {
+          alert("Session expired. Please log in again.");
+          localStorage.clear();
+          window.location.href = LOGIN_PAGE_URL;
+          throw new Error("Unauthorized");
+        }
+
+        // Handle empty responses (like for DELETE)
+        if (response.status === 204) {
+          return true;
+        }
+
+        const responseText = await response.text();
+        if (!response.ok) {
+          let errorDetail = responseText;
+          try {
+            const errorJson = JSON.parse(responseText);
+            errorDetail = errorJson.detail || JSON.stringify(errorJson);
+          } catch (e) {
+            // The error response was not JSON, use the raw text.
+          }
+          throw new Error(errorDetail);
+        }
+
+        if (!responseText) return []; // Handle empty but successful responses
+        return JSON.parse(responseText); // This is where the original error happened
+
+      } catch (error) {
+        console.error(`Error in makeApiRequest for ${method} ${url}:`, error);
+        alert(`Request Failed: ${error.message}`);
+        throw error;
+      } finally {
+        if (loadingOverlay) loadingOverlay.classList.remove('visible');
+      }
+    }
+
+    // --- UI Initialization & User Info Display ---
+    function updateUserInfoDisplay() {
+      const username = localStorage.getItem('username') || 'User';
+      const role = localStorage.getItem('user_role') || 'Role';
+      const roleFormatted = role.charAt(0).toUpperCase() + role.slice(1);
+      document.getElementById('userDisplayNameHeader').textContent = username;
+      document.getElementById('currentUserRoleDisplayHeader').textContent = roleFormatted;
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      lucide.createIcons();
+      if (!getAuthToken()) return;
+      updateUserInfoDisplay();
+      initializeTheme();
+      initializeSidebar();
+      initializeUserSection();
+    });
+
+    // --- Sidebar & Theme Initializers ---
+    function initializeTheme() {
+      const themeToggleButton = document.getElementById('theme-toggle-header');
+      const applyTheme = (theme) => {
+        localStorage.setItem('theme', theme);
+        document.documentElement.classList.toggle('dark', theme === 'dark');
+        if (themeToggleButton) {
+          themeToggleButton.innerHTML = theme === 'dark' ? '<i data-lucide="sun"></i>' : '<i data-lucide="moon"></i>';
+          lucide.createIcons();
+        }
+      };
+      const savedTheme = localStorage.getItem('theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+      applyTheme(savedTheme);
+      themeToggleButton?.addEventListener('click', () => applyTheme(localStorage.getItem('theme') === 'dark' ? 'light' : 'dark'));
+    }
+
+    function initializeSidebar() {
+      const sidebar = document.getElementById('sidebar');
+      const mobileMenuButton = document.getElementById('mobile-menu-button');
+      const sidebarCloseButton = document.getElementById('sidebar-close-button');
+      const sidebarOverlay = document.getElementById('sidebar-overlay');
+      const openMobileMenu = () => { sidebar?.classList.remove('-translate-x-full'); sidebarOverlay?.classList.remove('hidden'); };
+      const closeMobileMenu = () => { sidebar?.classList.add('-translate-x-full'); sidebarOverlay?.classList.add('hidden'); };
+      mobileMenuButton?.addEventListener('click', openMobileMenu);
+      sidebarCloseButton?.addEventListener('click', closeMobileMenu);
+      sidebarOverlay?.addEventListener('click', closeMobileMenu);
+      document.getElementById('global-logout-btn')?.addEventListener('click', (e) => {
+        e.preventDefault(); localStorage.clear();
+        alert("You have been logged out.");
+        window.location.href = LOGIN_PAGE_URL;
+      });
+    }
+
+    // --- Main User Section Logic ---
+    async function initializeUserSection() {
+      await Promise.all([
+        populateDropdown('user_service_id_form', SERVICE_API_ENDPOINT, 'id', 'service_name'),
+        populateDropdown('user_role_id_form', ROLE_API_ENDPOINT, 'id', 'name'),
+        fetchUsers()
+      ]);
+      populateUserStatusDropdown();
+
+      document.getElementById('userSearch')?.addEventListener('input', () => { currentUserPage = 1; renderUsersTable(); });
+      document.getElementById('addUserForm')?.addEventListener('submit', handleUserFormSubmit);
+      document.getElementById('confirmDeleteUserBtn')?.addEventListener('click', confirmDeleteUser);
+
+      document.getElementById('user-filter-today')?.addEventListener('click', () => applyUserDateFilter('today'));
+      document.getElementById('user-filter-last7')?.addEventListener('click', () => applyUserDateFilter('last7days'));
+      document.getElementById('user-filter-last30')?.addEventListener('click', () => applyUserDateFilter('last30days'));
+      document.getElementById('user-filter-all')?.addEventListener('click', () => applyUserDateFilter('all'));
+      document.getElementById('user-filter-custom-btn')?.addEventListener('click', toggleUserCustomDateRange);
+      document.getElementById('applyCustomDateFilterButton')?.addEventListener('click', applyUserCustomDateFilter);
+    }
+
+    async function fetchUsers() {
+      const searchTerm = document.getElementById('userSearch')?.value || "";
+      let url = `${API_BASE_URL}${USER_API_ENDPOINT}?limit=1000`;
+      if (searchTerm) url += `&search=${encodeURIComponent(searchTerm)}`;
+      try {
+        const data = await makeApiRequest(url);
+        allFetchedUsers = Array.isArray(data) ? data.sort((a, b) => new Date(b.created_at) - new Date(a.created_at)) : [];
+        currentUserPage = 1;
+        renderUsersTable();
+      } catch (error) {
+        allFetchedUsers = [];
+        renderUsersTable();
+      }
+    }
+
+    async function populateDropdown(selectId, endpoint, valueField, nameField) {
+      const selectElement = document.getElementById(selectId);
+      if (!selectElement) return;
+      try {
+        const data = await makeApiRequest(API_BASE_URL + endpoint);
+        if (Array.isArray(data)) {
+          selectElement.innerHTML = '<option value="">-- Select --</option>';
+          data.forEach(item => {
+            const option = document.createElement('option');
+            option.value = item[valueField];
+            option.textContent = item[nameField].charAt(0).toUpperCase() + item[nameField].slice(1);
+            selectElement.appendChild(option);
+          });
+        }
+      } catch (error) {
+        console.error(`Failed to populate dropdown ${selectId}:`, error);
+      }
+    }
+
+    function populateUserStatusDropdown() {
+      const sel = document.getElementById('user_status_form');
+      if (!sel) return;
+      sel.innerHTML = '';
+      userStatuses.forEach(s => {
+        const o = document.createElement('option'); o.value = s;
+        o.textContent = s.charAt(0).toUpperCase() + s.slice(1).replace(/_/g, ' '); sel.appendChild(o);
+      });
+    }
+
+    // --- Rendering & Pagination ---
+    function renderUsersTable() {
+      const filteredRecords = getFilteredUsers();
+      const start = (currentUserPage - 1) * usersPerPage;
+      const paginated = filteredRecords.slice(start, start + usersPerPage);
+      const tbody = document.getElementById('usersBody');
+      if (!tbody) return;
+
+      tbody.innerHTML = paginated.length > 0 ? paginated.map(u => {
+        const statusDisplay = u.status ? String(u.status).replace(/_/g, ' ') : 'N/A';
+        const statusColorMap = { "active": "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200", "inactive": "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200", "pending": "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200", "suspended": "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200" };
+        const statusColor = statusColorMap[u.status] || "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200";
+        const createdAt = u.created_at ? new Date(u.created_at).toLocaleDateString() : 'N/A';
+        const fullName = `${u.first_name} ${u.last_name}`;
+
+        return `
+        <tr class="border-b dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700/50">
+            <td class="py-3 px-2">${u.id || 'N/A'}</td>
+            <td class="px-2">${fullName}</td>
+            <td class="px-2">${u.email || 'N/A'}</td>
+            <td class="px-2">${u.matricule || 'N/A'}</td>
+            <td class="px-2">${u.role ? u.role.name : 'N/A'}</td>
+            <td class="px-2"><span class="px-2 py-1 text-xs rounded-full ${statusColor}">${statusDisplay}</span></td>
+            <td class="px-2">${createdAt}</td>
+            <td class="px-2 text-center whitespace-nowrap">
+                <button onclick="openViewUserModal(${u.id || null})" class="text-green-600 p-1"><i data-lucide="eye" class="w-4 h-4"></i></button>
+                <button onclick="openEditUserModal(${u.id || null})" class="text-blue-600 p-1 ml-1"><i data-lucide="edit-2" class="w-4 h-4"></i></button>
+                <button onclick="openConfirmDeleteUserModal(${u.id || null})" class="text-red-600 p-1 ml-1"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+            </td>
+        </tr>`;
+      }).join('') : `<tr><td colspan="8" class="text-center py-8">No users found.</td></tr>`;
+
+      lucide.createIcons();
+      document.getElementById('usersCount').textContent = `Showing ${paginated.length > 0 ? start + 1 : 0} to ${start + paginated.length} of ${filteredRecords.length} users`;
+      renderUserPagination(filteredRecords.length);
+    }
+
+    function renderUserPagination(totalRecords) {
+      const totalPages = Math.ceil(totalRecords / usersPerPage);
+      const paginationContainer = document.getElementById('usersPagination');
+      if (!paginationContainer) return;
+      paginationContainer.innerHTML = '';
+      if (totalPages <= 1) return;
+
+      const createButton = (content, page, isEnabled = true, isCurrent = false) => {
+        const button = document.createElement('button');
+        button.innerHTML = content;
+        button.disabled = !isEnabled;
+        button.className = `flex items-center justify-center px-3 h-8 text-sm font-medium rounded-lg border ${isCurrent ? 'bg-blue-500 text-white border-blue-500' : isEnabled ? 'bg-white text-gray-500 border-gray-300 hover:bg-gray-100 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-gray-700' : 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed dark:bg-gray-700 dark:border-gray-600'}`;
+        if (isEnabled && !isCurrent) { button.onclick = () => { currentUserPage = page; renderUsersTable(); }; }
+        return button;
+      };
+
+      paginationContainer.appendChild(createButton('<i data-lucide="chevron-left"></i>', currentUserPage - 1, currentUserPage > 1));
+      const pageInfo = document.createElement('span');
+      pageInfo.className = "px-3 h-8 flex items-center text-sm text-gray-500 dark:text-gray-400";
+      pageInfo.textContent = `Page ${currentUserPage} of ${totalPages}`;
+      paginationContainer.appendChild(pageInfo);
+      paginationContainer.appendChild(createButton('<i data-lucide="chevron-right"></i>', currentUserPage + 1, currentUserPage < totalPages));
+      lucide.createIcons();
+    }
+
+    // --- Modal & Form Submission Logic ---
+    function openAddUserModal() {
+      userToEditId = null;
+      document.getElementById('addUserForm')?.reset();
+      document.getElementById('userModalTitle').textContent = "Add New User";
+      document.getElementById('userSubmitButton').innerHTML = `<i data-lucide="user-plus" class="w-4 h-4"></i> Add User`;
+      document.getElementById('user_password_form').required = true;
+      document.getElementById('passwordHint').classList.add('hidden');
+      lucide.createIcons();
+      document.getElementById('addUserModal')?.classList.remove('hidden');
+    }
+
+    async function openEditUserModal(id) {
+      if (id == null) return;
+      const u = allFetchedUsers.find(r => r.id === id);
+      if (!u) { alert("User not found."); return; }
+
+      userToEditId = id;
+      document.getElementById('addUserForm')?.reset();
+      document.getElementById('userModalTitle').textContent = "Edit User";
+      document.getElementById('userSubmitButton').innerHTML = `<i data-lucide="save" class="w-4 h-4"></i> Save Changes`;
+
+      document.getElementById('userId_form').value = u.id;
+      document.getElementById('user_first_name_form').value = u.first_name || '';
+      document.getElementById('user_last_name_form').value = u.last_name || '';
+      document.getElementById('user_email_form').value = u.email || '';
+      document.getElementById('user_matricule_form').value = u.matricule || '';
+      document.getElementById('user_telephone_form').value = u.telephone || '';
+      document.getElementById('user_service_id_form').value = u.service_id || '';
+      document.getElementById('user_role_id_form').value = u.role ? u.role.id : '';
+      document.getElementById('user_status_form').value = u.status || userStatuses[0];
+
+      document.getElementById('user_password_form').value = "";
+      document.getElementById('user_password_form').required = false;
+      document.getElementById('passwordHint').classList.remove('hidden');
+
+      lucide.createIcons();
+      document.getElementById('addUserModal')?.classList.remove('hidden');
+    }
+
+    function closeAddUserModal() { document.getElementById('addUserModal')?.classList.add('hidden'); }
+
+    function openViewUserModal(id) {
+      if (id == null) return;
+      const u = allFetchedUsers.find(r => r.id === id);
+      if (!u) { alert("User not found."); return; }
+
+      document.getElementById('view-user-id').textContent = u.id || 'N/A';
+      document.getElementById('view-user-full_name').textContent = `${u.first_name} ${u.last_name}`;
+      document.getElementById('view-user-email').textContent = u.email || 'N/A';
+      document.getElementById('view-user-matricule').textContent = u.matricule || 'N/A';
+      document.getElementById('view-user-telephone').textContent = u.telephone || 'N/A';
+      document.getElementById('view-user-role').textContent = u.role ? u.role.name : 'N/A';
+      document.getElementById('view-user-status').textContent = u.status || 'N/A';
+      document.getElementById('view-user-created_at').textContent = u.created_at ? new Date(u.created_at).toLocaleString() : 'N/A';
+
+      document.getElementById('viewUserModal')?.classList.remove('hidden');
+    }
+
+    function closeViewUserModal() { document.getElementById('viewUserModal')?.classList.add('hidden'); }
+
+    async function handleUserFormSubmit(ev) {
+      ev.preventDefault();
+      const password = document.getElementById('user_password_form').value;
+      const userData = {
+        first_name: document.getElementById('user_first_name_form').value,
+        last_name: document.getElementById('user_last_name_form').value,
+        email: document.getElementById('user_email_form').value,
+        matricule: document.getElementById('user_matricule_form').value,
+        telephone: document.getElementById('user_telephone_form').value,
+        service_id: parseInt(document.getElementById('user_service_id_form').value),
+        role_id: parseInt(document.getElementById('user_role_id_form').value),
+        status: document.getElementById('user_status_form').value
+      };
+
+      if (userToEditId) {
+        if (password) userData.password = password;
+      } else {
+        if (!password) { alert("Password is required for new users."); return; }
+        userData.password = password;
+      }
+
+      try {
+        if (userToEditId) {
+          await makeApiRequest(`${API_BASE_URL}${USER_API_ENDPOINT}${userToEditId}/`, 'PUT', userData);
+          showOperationSuccessModal('User Updated!', 'User record has been successfully updated.');
+        } else {
+          await makeApiRequest(`${API_BASE_URL}${USER_API_ENDPOINT}`, 'POST', userData);
+          showOperationSuccessModal('User Added!', 'A new user has been successfully created.');
+        }
+      } catch (err) { /* Error is handled by makeApiRequest */ }
+    }
+
+    function openConfirmDeleteUserModal(id) {
+      if (id == null) return;
+      userToDeleteId = id;
+      document.getElementById('confirmDeleteUserModal')?.classList.remove('hidden');
+    }
+    function closeConfirmDeleteUserModal() {
+      userToDeleteId = null;
+      document.getElementById('confirmDeleteUserModal')?.classList.add('hidden');
+    }
+
+    async function confirmDeleteUser() {
+      if (userToDeleteId == null) return;
+      try {
+        await makeApiRequest(`${API_BASE_URL}${USER_API_ENDPOINT}${userToDeleteId}/`, 'DELETE');
+        showOperationSuccessModal('User Deleted!', 'User record has been permanently deleted.', 'trash-2', 'text-red-600 dark:text-red-400');
+        userToDeleteId = null;
+      } catch (err) { /* Error handled by makeApiRequest */ }
+    }
+
+    function showOperationSuccessModal(title, message, icon = 'check-circle', color = 'text-green-600 dark:text-green-400') {
+      document.getElementById('successModalTitle').textContent = title;
+      document.getElementById('successModalMessage').textContent = message;
+      document.getElementById('successModalIconContainer').innerHTML = `<i data-lucide="${icon}" class="w-8 h-8 ${color}"></i>`;
+      lucide.createIcons();
+      document.getElementById('operationSuccessModal')?.classList.remove('hidden');
+    }
+
+    function closeOperationSuccessModalAndRefresh() {
+      document.getElementById('operationSuccessModal')?.classList.add('hidden');
+
+      // Close other open modals
+      closeAddUserModal();
+      closeConfirmDeleteUserModal();
+      closeViewUserModal();
+
+      // Reset form and refresh data
+      document.getElementById('addUserForm')?.reset();
+      userToEditId = null;
+      userToDeleteId = null;
+
+      // Force refresh the user data and UI
+      fetchUsers().then(() => {
+        // Ensure UI is properly updated
+        currentUserPage = 1;
+        renderUsersTable();
+      }).catch(error => {
+        console.error("Error refreshing users:", error);
+        // Even if there's an error, still refresh the table with current data
+        renderUsersTable();
+      });
+    }
+
+    // --- Date Filtering Logic ---
+    function getISODateString(date) { return date.toISOString().split('T')[0]; }
+    function getDateRange(filterType) {
+      const today = new Date(); today.setHours(0, 0, 0, 0);
+      let startDate = new Date(today);
+      if (filterType === 'last7days') startDate.setDate(today.getDate() - 6);
+      else if (filterType === 'last30days') startDate.setDate(today.getDate() - 29);
+      return { startDate: getISODateString(startDate), endDate: getISODateString(new Date()) };
+    }
+
+    function getFilteredUsers() {
+      let records = [...allFetchedUsers];
+      if (activeUserDateFilter !== 'all') {
+        const range = (activeUserDateFilter === 'custom') ?
+          { startDate: customUserFilterStartDate, endDate: customUserFilterEndDate } :
+          getDateRange(activeUserDateFilter);
+        if (range.startDate && range.endDate) {
+          records = records.filter(u => {
+            if (!u.created_at) return false;
+            const userDate = getISODateString(new Date(u.created_at));
+            return userDate >= range.startDate && userDate <= range.endDate;
+          });
+        }
+      }
+      return records;
+    }
+
+    function applyUserDateFilter(filterType) {
+      activeUserDateFilter = filterType;
+      document.querySelectorAll('#user-section .date-filter-btn').forEach(b => b.classList.remove('active'));
+      document.getElementById(`user-filter-${filterType}`)?.classList.add('active');
+      document.getElementById('userCustomDateRange')?.classList.add('hidden');
+      currentUserPage = 1;
+      renderUsersTable();
+    }
+
+    function toggleUserCustomDateRange() {
+      document.getElementById('userCustomDateRange')?.classList.toggle('hidden');
+      document.querySelectorAll('#user-section .date-filter-btn').forEach(b => b.classList.remove('active'));
+      document.getElementById('user-filter-custom-btn')?.classList.add('active');
+    }
+
+    function applyUserCustomDateFilter() {
+      const startDate = document.getElementById('userCustomStartDate').value;
+      const endDate = document.getElementById('userCustomEndDate').value;
+      if (!startDate || !endDate) { alert("Please select both a start and end date."); return; }
+      if (new Date(startDate) > new Date(endDate)) { alert("Start date cannot be after end date."); return; }
+
+      activeUserDateFilter = 'custom';
+      customUserFilterStartDate = startDate;
+      customUserFilterEndDate = endDate;
+      currentUserPage = 1;
+      renderUsersTable();
+    }
+
+    // --- Export Functions ---
+    function exportUsersExcel() {
+      const records = getFilteredUsers();
+      if (records.length === 0) { alert("No data to export."); return; }
+      const wsData = records.map(u => ({
+        ID: u.id,
+        "Full Name": `${u.first_name} ${u.last_name}`,
+        Email: u.email,
+        Matricule: u.matricule,
+        Role: u.role ? u.role.name : 'N/A',
+        Status: u.status,
+        "Created At": u.created_at ? new Date(u.created_at).toLocaleString() : 'N/A'
+      }));
+      const ws = XLSX.utils.json_to_sheet(wsData);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Users");
+      XLSX.writeFile(wb, "users_export.xlsx");
+    }
+
+    function exportUsersPDF() {
+      const { jsPDF } = window.jspdf;
+      const records = getFilteredUsers();
+      if (records.length === 0) { alert("No data to export."); return; }
+      const doc = new jsPDF();
+      doc.text("User Records", 14, 15);
+      doc.autoTable({
+        head: [['ID', 'Full Name', 'Email', 'Matricule', 'Role', 'Status']],
+        body: records.map(u => [u.id, `${u.first_name} ${u.last_name}`, u.email, u.matricule, u.role ? u.role.name : 'N/A', u.status]),
+        startY: 25,
+        theme: 'grid'
+      });
+      doc.save('users_export.pdf');
+    }
+
+  </script>
+</body>
+
+</html>

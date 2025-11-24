@@ -1,0 +1,29 @@
+variable "docker_username" {
+  description = "Docker Hub username for pulling images"
+  type        = string
+  sensitive   = true
+}
+
+variable "docker_password" {
+  description = "Docker Hub password or access token"
+  type        = string
+  sensitive   = true
+}
+
+variable "db_password" {
+  description = "Password for PostgreSQL database"
+  type        = string
+  sensitive   = true
+}
+
+variable "secret_key" {
+  description = "Secret key for FastAPI application"
+  type        = string
+  sensitive   = true
+}
+
+variable "ssh_public_key" {
+  description = "SSH public key for EC2 instance access"
+  type        = string
+  sensitive   = true
+}
