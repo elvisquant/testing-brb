@@ -7,14 +7,14 @@ sudo yum update -y
 
 # Install Docker
 echo "🐳 Installing Docker..."
-sudo amazon-linux-extras install docker -y
+sudo yum install -y docker
 sudo systemctl enable docker
 sudo systemctl start docker
 sudo usermod -a -G docker ec2-user
 
 # Install Docker Compose
 echo "📦 Installing Docker Compose..."
-sudo curl -L "https://github.com/docker/compose/releases/download/v2.23.0/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
 sudo chmod +x /usr/local/bin/docker-compose
 
 # Create application directory
@@ -71,7 +71,7 @@ entryPoints:
 certificatesResolvers:
   myresolver:
     acme:
-      email: "admin@elvisquant.com"
+      email: "elvisndayishimiye200@gmail.com"
       storage: /acme.json
       httpChallenge:
         entryPoint: web
@@ -98,8 +98,17 @@ sudo cloud-init status --wait
 # Start the application
 echo "🚀 Starting application services..."
 cd /opt/brb-app
-sudo -u ec2-user docker-compose -f docker-compose.prod.yml pull || echo "Docker Compose file will be downloaded later"
-sudo -u ec2-user docker-compose -f docker-compose.prod.yml up -d || echo "Docker Compose file will be downloaded later"
+
+# --- FIX: Download the Docker Compose file so the instance can start correctly on boot ---
+echo "📄 Downloading Docker Compose file..."
+# IMPORTANT: Replace YOUR_USERNAME/YOUR_REPO with your actual GitHub username and repository
+sudo curl -o docker-compose.prod.yml https://raw.githubusercontent.com/elvisquant/testing-brb/main/docker-compose.prod.yml
+sudo chown ec2-user:ec2-user docker-compose.prod.yml
+
+# Now, pull the image and start the services as the ec2-user
+echo "🐳 Pulling initial Docker image and starting services..."
+sudo -u ec2-user /usr/local/bin/docker-compose -f docker-compose.prod.yml pull
+sudo -u ec2-user /usr/local/bin/docker-compose -f docker-compose.prod.yml up -d
 
 echo "✅ EC2 instance setup complete!"
 echo "🌐 Your application will be available at: https://brb.elvisquant.com"

@@ -47,6 +47,11 @@ jobs:
           --query "Reservations[0].Instances[0].InstanceId" \
           --output text)
         
+        if [ -z "$INSTANCE_ID" ] || [ "$INSTANCE_ID" == "None" ]; then
+          echo "❌ Could not find a running instance with tag Name=brb-app-server."
+          exit 1
+        fi
+        
         echo "Instance ID: $INSTANCE_ID"
         
         # Send command via SSM to deploy the app
@@ -56,13 +61,14 @@ jobs:
           --parameters '{
             "commands": [
               "cd /opt/brb-app",
+              "sudo sed -i \"s|BACKEND_IMAGE=.*|BACKEND_IMAGE=${{ secrets.DOCKER_USERNAME }}/brb-app-backend|\" .env",
               "sudo sed -i \"s/IMAGE_TAG=.*/IMAGE_TAG=${{ github.sha }}/\" .env",
               "sudo sed -i \"s/COMMIT_SHA=.*/COMMIT_SHA=${{ github.sha }}/\" .env",
-              "if [ ! -f docker-compose.prod.yml ]; then curl -o docker-compose.prod.yml https://raw.githubusercontent.com/${{ github.repository }}/main/docker-compose.prod.yml; fi",
-              "sudo docker-compose -f docker-compose.prod.yml pull backend",
-              "sudo docker-compose -f docker-compose.prod.yml up -d",
-              "sleep 30",
-              "curl -f http://localhost:8000/health && echo \"✅ Deployment successful!\" || echo \"❌ Health check failed\""
+              "sudo -u ec2-user /usr/local/bin/docker-compose -f docker-compose.prod.yml pull backend",
+              "sudo -u ec2-user /usr/local/bin/docker-compose -f docker-compose.prod.yml up -d --remove-orphans",
+              "sleep 15",
+              "sudo -u ec2-user /usr/local/bin/docker-compose -f docker-compose.prod.yml ps",
+              "curl -f http://localhost:8000/health && echo \"✅ Health check successful!\" || (echo \"❌ Health check failed\" && exit 1)"
             ]
           }' \
           --output text
@@ -71,10 +77,11 @@ jobs:
       run: |
         echo "🔍 Checking if app is accessible..."
         sleep 30
-        if curl -f -s "https://brb.elvisquant.com/health"; then
+        if curl --fail --silent --show-error "https://brb.elvisquant.com/health"; then
           echo "✅ App is live at https://brb.elvisquant.com"
         else
-          echo "⚠️ App might still be starting..."
+          echo "⚠️ App failed to become healthy. Please check EC2 instance logs."
+          exit 1
         fi
 
     - name: "📋 Deployment Complete"
