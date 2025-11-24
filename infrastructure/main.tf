@@ -175,16 +175,11 @@ data "aws_route53_zone" "elvisquant" {
   private_zone = false
 }
 
-# Route53 A record for brb.elvisquant.com
+# Route53 A record for brb.elvisquant.com (REMOVED TAGS - not supported)
 resource "aws_route53_record" "brb_app" {
   zone_id = data.aws_route53_zone.elvisquant.zone_id
   name    = "brb.${data.aws_route53_zone.elvisquant.name}"
   type    = "A"
   ttl     = 300
   records = [aws_instance.brb_app.public_ip]
-
-  tags = {
-    Name        = "brb-app-dns"
-    Environment = "production"
-  }
 }
