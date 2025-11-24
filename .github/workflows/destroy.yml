@@ -32,3 +32,4 @@ jobs:
           -var="db_password=${{ secrets.DB_PASSWORD }}" \
           -var="secret_key=${{ secrets.SECRET_KEY }}" \
           -var="ssh_public_key=${{ secrets.EC2_SSH_PUBLIC_KEY }}"
+##
