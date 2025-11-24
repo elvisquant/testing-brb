@@ -40,7 +40,8 @@ jobs:
         build-args: |
           COMMIT_SHA=${{ github.sha }}
 
-    - name: "🚀 Deploy to EC2 using SSM"
+    # --- THE FIX IS HERE ---
+    - name: "⏳ Wait for EC2 Instance to be Ready"
       run: |
         INSTANCE_ID=$(aws ec2 describe-instances \
           --filters "Name=tag:Name,Values=brb-app-server" \
@@ -52,7 +53,19 @@ jobs:
           exit 1
         fi
         
-        echo "Instance ID: $INSTANCE_ID"
+        echo "Found Instance ID: $INSTANCE_ID. Waiting for it to pass status checks..."
+        aws ec2 wait instance-status-ok --instance-ids $INSTANCE_ID
+        echo "✅ Instance is ready."
+    # --- END OF FIX ---
+
+    - name: "🚀 Deploy to EC2 using SSM"
+      run: |
+        INSTANCE_ID=$(aws ec2 describe-instances \
+          --filters "Name=tag:Name,Values=brb-app-server" \
+          --query "Reservations[0].Instances[0].InstanceId" \
+          --output text)
+        
+        echo "Deploying to Instance ID: $INSTANCE_ID"
         
         # Send command via SSM to deploy the app
         aws ssm send-command \
@@ -64,10 +77,10 @@ jobs:
               "sudo sed -i \"s|BACKEND_IMAGE=.*|BACKEND_IMAGE=${{ secrets.DOCKER_USERNAME }}/brb-app-backend|\" .env",
               "sudo sed -i \"s/IMAGE_TAG=.*/IMAGE_TAG=${{ github.sha }}/\" .env",
               "sudo sed -i \"s/COMMIT_SHA=.*/COMMIT_SHA=${{ github.sha }}/\" .env",
-              "sudo -u ec2-user /usr/local/bin/docker-compose -f docker-compose.prod.yml pull backend",
-              "sudo -u ec2-user /usr/local/bin/docker-compose -f docker-compose.prod.yml up -d --remove-orphans",
+              "sudo -u ubuntu /usr/local/bin/docker-compose -f docker-compose.prod.yml pull backend",
+              "sudo -u ubuntu /usr/local/bin/docker-compose -f docker-compose.prod.yml up -d --remove-orphans",
               "sleep 15",
-              "sudo -u ec2-user /usr/local/bin/docker-compose -f docker-compose.prod.yml ps",
+              "sudo -u ubuntu /usr/local/bin/docker-compose -f docker-compose.prod.yml ps",
               "curl -f http://localhost:8000/health && echo \"✅ Health check successful!\" || (echo \"❌ Health check failed\" && exit 1)"
             ]
           }' \
