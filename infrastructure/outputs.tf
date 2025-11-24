@@ -10,10 +10,10 @@ output "application_url" {
 
 output "s3_bucket_name" {
   description = "Name of the S3 bucket for Terraform state"
-  value       = aws_s3_bucket.tf_state.bucket
+  value       = data.aws_s3_bucket.tf_state.bucket
 }
 
 output "dynamodb_table" {
   description = "Name of the DynamoDB table for state locking"
-  value       = aws_dynamodb_table.tf_locks.name
+  value       = data.aws_dynamodb_table.tf_locks.name
 }

@@ -2,48 +2,14 @@ provider "aws" {
   region = "us-east-1"
 }
 
-# Create S3 bucket for Terraform state FIRST
-resource "aws_s3_bucket" "tf_state" {
+# Import existing S3 bucket instead of creating new one
+data "aws_s3_bucket" "tf_state" {
   bucket = "brb-app-tf-state-2024"
-
-  tags = {
-    Name        = "BRB App Terraform State"
-    Environment = "production"
-  }
 }
 
-resource "aws_s3_bucket_versioning" "tf_state" {
-  bucket = aws_s3_bucket.tf_state.id
-  versioning_configuration {
-    status = "Enabled"
-  }
-}
-
-resource "aws_s3_bucket_server_side_encryption_configuration" "tf_state" {
-  bucket = aws_s3_bucket.tf_state.id
-
-  rule {
-    apply_server_side_encryption_by_default {
-      sse_algorithm = "AES256"
-    }
-  }
-}
-
-# Create DynamoDB table for state locking
-resource "aws_dynamodb_table" "tf_locks" {
-  name         = "brb-app-tf-locks"
-  billing_mode = "PAY_PER_REQUEST"
-  hash_key     = "LockID"
-
-  attribute {
-    name = "LockID"
-    type = "S"
-  }
-
-  tags = {
-    Name        = "BRB App Terraform Locks"
-    Environment = "production"
-  }
+# Import existing DynamoDB table instead of creating new one
+data "aws_dynamodb_table" "tf_locks" {
+  name = "brb-app-tf-locks"
 }
 
 # Get the default VPC and subnets
@@ -139,7 +105,8 @@ resource "aws_instance" "brb_app" {
 
   monitoring = false
 
-  user_data = base64encode(templatefile("${path.module}/user-data.sh", {
+  # Fixed: use user_data_base64 instead of user_data with base64encode
+  user_data_base64 = base64encode(templatefile("${path.module}/user-data.sh", {
     domain          = "brb.elvisquant.com"
     docker_username = var.docker_username
     docker_password = var.docker_password
@@ -151,14 +118,9 @@ resource "aws_instance" "brb_app" {
     Name        = "brb-app-server"
     Environment = "production"
   }
-
-  depends_on = [
-    aws_s3_bucket.tf_state,
-    aws_dynamodb_table.tf_locks
-  ]
 }
 
-# SSH key pair
+# SSH key pair - FIXED: use public_key directly
 resource "aws_key_pair" "brb_key" {
   key_name   = "brb-app-key"
   public_key = var.ssh_public_key
@@ -175,7 +137,7 @@ data "aws_route53_zone" "elvisquant" {
   private_zone = false
 }
 
-# Route53 A record for brb.elvisquant.com (REMOVED TAGS - not supported)
+# Route53 A record for brb.elvisquant.com
 resource "aws_route53_record" "brb_app" {
   zone_id = data.aws_route53_zone.elvisquant.zone_id
   name    = "brb.${data.aws_route53_zone.elvisquant.name}"
