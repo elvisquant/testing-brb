@@ -2,12 +2,12 @@ provider "aws" {
   region = "us-east-1"
 }
 
-# Import existing S3 bucket instead of creating new one
+# Import existing S3 bucket
 data "aws_s3_bucket" "tf_state" {
   bucket = "brb-app-tf-state-2024"
 }
 
-# Import existing DynamoDB table instead of creating new one
+# Import existing DynamoDB table
 data "aws_dynamodb_table" "tf_locks" {
   name = "brb-app-tf-locks"
 }
@@ -89,15 +89,15 @@ data "aws_ami" "amazon_linux_2023" {
   }
 }
 
-# EC2 Instance - Use existing key pair or create without SSH key for now
+# EC2 Instance
 resource "aws_instance" "brb_app" {
   ami                    = data.aws_ami.amazon_linux_2023.id
   instance_type          = "t2.micro"
   vpc_security_group_ids = [aws_security_group.brb_app_sg.id]
   subnet_id              = data.aws_subnets.default.ids[0]
   
-  # Remove key_name for now - we'll use SSM Session Manager instead
-  # key_name = aws_key_pair.brb_key.key_name
+  # Use IAM Instance Profile for SSM access
+  iam_instance_profile = aws_iam_instance_profile.brb_app.name
 
   root_block_device {
     volume_type = "gp2"
@@ -106,9 +106,6 @@ resource "aws_instance" "brb_app" {
   }
 
   monitoring = false
-
-  # Use IAM Instance Profile for SSM access
-  iam_instance_profile = aws_iam_instance_profile.brb_app.name
 
   user_data_base64 = base64encode(templatefile("${path.module}/user-data.sh", {
     domain          = "brb.elvisquant.com"
@@ -159,17 +156,15 @@ resource "aws_iam_role_policy_attachment" "ssm_managed_instance" {
   policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
 }
 
-# Get the Route53 hosted zone for elvisquant.com
-data "aws_route53_zone" "elvisquant" {
-  name         = "elvisquant.com."
-  private_zone = false
+# Route53 record already exists - skip creation
+# The record brb.elvisquant.com already points to your EC2 instance
+
+output "ec2_public_ip" {
+  description = "Public IP address of the EC2 instance"
+  value       = aws_instance.brb_app.public_ip
 }
 
-# Route53 A record for brb.elvisquant.com
-resource "aws_route53_record" "brb_app" {
-  zone_id = data.aws_route53_zone.elvisquant.zone_id
-  name    = "brb.${data.aws_route53_zone.elvisquant.name}"
-  type    = "A"
-  ttl     = 300
-  records = [aws_instance.brb_app.public_ip]
+output "application_url" {
+  description = "URL where the application will be available"
+  value       = "https://brb.elvisquant.com"
 }
