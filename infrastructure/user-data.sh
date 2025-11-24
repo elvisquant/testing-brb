@@ -120,3 +120,4 @@ sudo -u ec2-user /usr/local/bin/docker-compose -f docker-compose.prod.yml up -d
 echo "✅ EC2 instance setup complete!"
 echo "🌐 Your application will be available at: https://brb.elvisquant.com"
 echo "🔧 Use AWS Systems Manager Session Manager to access the instance"
+############################################################
