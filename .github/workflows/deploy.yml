@@ -1,44 +1,39 @@
 name: "3. 🚀 Application Deployment"
 
 on:
-  push:
-    branches: [ main ]
-    paths-ignore:
-      - 'infrastructure/**'
-      - '.github/workflows/1-initial-setup.yml'
-      - '.github/workflows/2-infrastructure.yml'
   workflow_run:
     workflows: ["2. 🏗️ Infrastructure Deployment"]
     types: [completed]
+    branches: [main]
 
 env:
   DOCKER_REGISTRY: docker.io
 
 jobs:
-  check-readiness:
+  check-infrastructure-ready:
     runs-on: ubuntu-latest
     outputs:
       ready: ${{ steps.check.outputs.ready }}
       ec2_host: ${{ steps.check.outputs.ec2_host }}
     
     steps:
-    - name: "🔍 Check if ready for deployment"
+    - name: "🔍 Check if infrastructure is ready"
       id: check
       run: |
         if [ -n "${{ secrets.EC2_IP }}" ] && [ "${{ secrets.EC2_IP }}" != "null" ]; then
           echo "ready=true" >> $GITHUB_OUTPUT
           echo "ec2_host=${{ secrets.EC2_IP }}" >> $GITHUB_OUTPUT
-          echo "✅ Ready for deployment - EC2 IP: ${{ secrets.EC2_IP }}"
+          echo "✅ Infrastructure is ready - EC2 IP: ${{ secrets.EC2_IP }}"
         else
           echo "ready=false" >> $GITHUB_OUTPUT
           echo "ec2_host=" >> $GITHUB_OUTPUT
-          echo "❌ Not ready - EC2_IP secret missing"
+          echo "❌ Infrastructure not ready - waiting for EC2_IP secret"
         fi
 
   deploy-application:
     runs-on: ubuntu-latest
-    needs: check-readiness
-    if: needs.check-readiness.outputs.ready == 'true'
+    needs: check-infrastructure-ready
+    if: needs.check-infrastructure-ready.outputs.ready == 'true'
     
     steps:
     - name: "📥 Checkout code"
@@ -62,7 +57,7 @@ jobs:
     - name: "🏗️ Build and push Docker image"
       uses: docker/build-push-action@v5
       with:
-        context: .  # Changed from ./backend to root since Dockerfile is in root
+        context: .
         file: ./Dockerfile
         push: true
         tags: |
@@ -74,7 +69,7 @@ jobs:
     - name: "🚀 Deploy to EC2"
       uses: appleboy/ssh-action@v1.0.3
       with:
-        host: ${{ needs.check-readiness.outputs.ec2_host }}
+        host: ${{ needs.check-infrastructure-ready.outputs.ec2_host }}
         username: ec2-user
         key: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
         script: |
@@ -110,16 +105,16 @@ jobs:
           
           # Health check
           echo "⏳ Waiting for health check..."
-          for i in {1..12}; do
+          for i in {1..15}; do
             if curl -f http://localhost:8000/health > /dev/null 2>&1; then
               echo "✅ Health check passed!"
               break
             fi
-            echo "Attempt $i/12: Waiting..."
+            echo "Attempt $i/15: Waiting..."
             sleep 10
           done
           
-          # Verify
+          # Final verification
           if curl -f http://localhost:8000/health; then
             echo "🎉 Deployment successful!"
             echo "📦 Version: ${{ steps.version.outputs.IMAGE_TAG }}"
@@ -130,23 +125,46 @@ jobs:
             exit 1
           fi
 
-    - name: "🌐 Verify Access"
+    - name: "🌐 Verify Public Access"
       run: |
-        echo "🔍 Checking application access..."
+        echo "🔍 Checking public access..."
+        sleep 30  # Wait for SSL certificate provisioning
         if curl -f -s "https://brb.elvisquant.com/health" > /dev/null 2>&1; then
-          echo "✅ Application accessible at https://brb.elvisquant.com"
+          echo "✅ Application is live at https://brb.elvisquant.com"
         else
-          echo "⚠️  Application not accessible yet (DNS might be propagating)"
+          echo "⚠️  Application might still be starting up or DNS propagating"
         fi
+
+  infrastructure-not-ready:
+    runs-on: ubuntu-latest
+    needs: check-infrastructure-ready
+    if: needs.check-infrastructure-ready.outputs.ready == 'false'
+    
+    steps:
+    - name: "❌ Infrastructure Not Ready"
+      run: |
+        echo "❌ CANNOT DEPLOY - Infrastructure not ready"
+        echo "==========================================="
+        echo "The infrastructure deployment must complete successfully first."
+        echo "EC2_IP secret is missing or empty."
+        echo ""
+        echo "Please check the Infrastructure Deployment workflow:"
+        echo "https://github.com/${{ github.repository }}/actions/workflows/2-infrastructure.yml"
+        exit 1
 
   deployment-complete:
     runs-on: ubuntu-latest
-    needs: [check-readiness, deploy-application]
+    needs: deploy-application
+    if: always()
+    
     steps:
-    - name: "📋 Deployment Status"
+    - name: "📋 Final Status"
       run: |
-        echo "🎯 DEPLOYMENT PHASE COMPLETE"
-        echo "============================"
-        echo "✅ Readiness check: ${{ needs.check-readiness.result }}"
-        echo "✅ Application deployment: ${{ needs.deploy-application.result || 'skipped' }}"
-        echo "🌐 Your application is live at: https://brb.elvisquant.com"
+        echo "🎯 DEPLOYMENT PROCESS COMPLETE"
+        echo "=============================="
+        if [ "${{ needs.deploy-application.result }}" == "success" ]; then
+          echo "✅ Application deployed successfully!"
+          echo "🌐 Your app is live at: https://brb.elvisquant.com"
+        else
+          echo "❌ Deployment failed - check the logs above"
+        fi

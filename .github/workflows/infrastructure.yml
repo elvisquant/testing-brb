@@ -94,6 +94,7 @@ jobs:
         EC2_IP=$(terraform output -raw ec2_public_ip)
         echo "EC2_IP=$EC2_IP" >> $GITHUB_ENV
         echo "EC2_HOST=$EC2_IP" >> $GITHUB_ENV
+        echo "EC2_IP=$EC2_IP" >> $GITHUB_OUTPUT
 
     - name: "📤 Save EC2 IP to GitHub Secrets"
       uses: actions/github-script@v7
@@ -110,7 +111,7 @@ jobs:
                 secret_name: 'EC2_IP',
                 encrypted_value: ec2Ip
               });
-              console.log(`✅ EC2_IP saved: ${ec2Ip}`);
+              console.log(`✅ EC2_IP saved to secrets: ${ec2Ip}`);
             } catch (error) {
               console.log('❌ Failed to save EC2_IP:', error.message);
             }
@@ -118,7 +119,7 @@ jobs:
             console.log('❌ No EC2 IP found in Terraform outputs');
           }
 
-    - name: "📋 Infrastructure Complete"
+    - name: "📋 Mark Infrastructure Complete"
       run: |
         echo "🎯 INFRASTRUCTURE DEPLOYMENT COMPLETE"
         echo "===================================="
@@ -127,4 +128,4 @@ jobs:
         echo "✅ EC2 instance created"
         echo "✅ Route53 record configured"
         echo "🌐 Application URL: https://brb.elvisquant.com"
-        echo "🚀 Application deployment will now start..."
+        echo "🚀 Application deployment will now start automatically..."

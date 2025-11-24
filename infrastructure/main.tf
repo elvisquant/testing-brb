@@ -1,15 +1,3 @@
-# Terraform configuration
-terraform {
-  required_version = ">= 1.0"
-
-  required_providers {
-    aws = {
-      source  = "hashicorp/aws"
-      version = "~> 5.0"
-    }
-  }
-}
-
 provider "aws" {
   region = "us-east-1"
 }
@@ -139,7 +127,7 @@ data "aws_ami" "amazon_linux_2023" {
 resource "aws_instance" "brb_app" {
   ami                    = data.aws_ami.amazon_linux_2023.id
   instance_type          = "t2.micro"
-  vpc_security_group_ids = [aws_security_group.brb_app.sg.id]
+  vpc_security_group_ids = [aws_security_group.brb_app_sg.id]
   subnet_id              = data.aws_subnets.default.ids[0]
   key_name               = aws_key_pair.brb_key.key_name
 
