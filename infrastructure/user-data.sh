@@ -5,12 +5,15 @@ set -e
 echo "🔄 Updating system packages..."
 sudo yum update -y
 
-# Install Docker
+# --- THE FIX IS HERE ---
+# Install Docker using the correct command for Amazon Linux 2023
 echo "🐳 Installing Docker..."
 sudo yum install -y docker
+# --- END OF FIX ---
+
 sudo systemctl enable docker
 sudo systemctl start docker
-sudo usermod -a -G docker ec-user
+sudo usermod -a -G docker ec2-user
 
 # Install Docker Compose
 echo "📦 Installing Docker Compose..."
@@ -105,12 +108,9 @@ echo "📄 Downloading Docker Compose file..."
 sudo curl -o docker-compose.prod.yml https://raw.githubusercontent.com/YOUR_USERNAME/YOUR_REPO/main/docker-compose.prod.yml
 sudo chown ec2-user:ec2-user docker-compose.prod.yml
 
-# --- THE FIX IS HERE ---
 # Wait for 60 seconds to allow the DNS record to propagate globally.
-# This prevents a race condition where Traefik fails to get an SSL certificate.
 echo "⏳ Waiting 60 seconds for DNS propagation before starting services..."
 sleep 60
-# --- END OF FIX ---
 
 # Now, pull the image and start the services as the ec2-user
 echo "🐳 Pulling initial Docker image and starting services..."
@@ -120,4 +120,3 @@ sudo -u ec2-user /usr/local/bin/docker-compose -f docker-compose.prod.yml up -d
 echo "✅ EC2 instance setup complete!"
 echo "🌐 Your application will be available at: https://brb.elvisquant.com"
 echo "🔧 Use AWS Systems Manager Session Manager to access the instance"
-############################################################
