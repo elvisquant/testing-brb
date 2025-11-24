@@ -10,7 +10,7 @@ echo "🐳 Installing Docker..."
 sudo yum install -y docker
 sudo systemctl enable docker
 sudo systemctl start docker
-sudo usermod -a -G docker ec2-user
+sudo usermod -a -G docker ec-user
 
 # Install Docker Compose
 echo "📦 Installing Docker Compose..."
@@ -71,7 +71,7 @@ entryPoints:
 certificatesResolvers:
   myresolver:
     acme:
-      email: "elvisndayishimiye200@gmail.com"
+      email: "admin@elvisquant.com"
       storage: /acme.json
       httpChallenge:
         entryPoint: web
@@ -99,11 +99,18 @@ sudo cloud-init status --wait
 echo "🚀 Starting application services..."
 cd /opt/brb-app
 
-# --- FIX: Download the Docker Compose file so the instance can start correctly on boot ---
+# Download the Docker Compose file
 echo "📄 Downloading Docker Compose file..."
 # IMPORTANT: Replace YOUR_USERNAME/YOUR_REPO with your actual GitHub username and repository
-sudo curl -o docker-compose.prod.yml https://raw.githubusercontent.com/elvisquant/testing-brb/main/docker-compose.prod.yml
+sudo curl -o docker-compose.prod.yml https://raw.githubusercontent.com/YOUR_USERNAME/YOUR_REPO/main/docker-compose.prod.yml
 sudo chown ec2-user:ec2-user docker-compose.prod.yml
+
+# --- THE FIX IS HERE ---
+# Wait for 60 seconds to allow the DNS record to propagate globally.
+# This prevents a race condition where Traefik fails to get an SSL certificate.
+echo "⏳ Waiting 60 seconds for DNS propagation before starting services..."
+sleep 60
+# --- END OF FIX ---
 
 # Now, pull the image and start the services as the ec2-user
 echo "🐳 Pulling initial Docker image and starting services..."
