@@ -89,13 +89,15 @@ data "aws_ami" "amazon_linux_2023" {
   }
 }
 
-# EC2 Instance
+# EC2 Instance - Use existing key pair or create without SSH key for now
 resource "aws_instance" "brb_app" {
   ami                    = data.aws_ami.amazon_linux_2023.id
   instance_type          = "t2.micro"
   vpc_security_group_ids = [aws_security_group.brb_app_sg.id]
   subnet_id              = data.aws_subnets.default.ids[0]
-  key_name               = aws_key_pair.brb_key.key_name
+  
+  # Remove key_name for now - we'll use SSM Session Manager instead
+  # key_name = aws_key_pair.brb_key.key_name
 
   root_block_device {
     volume_type = "gp2"
@@ -105,7 +107,9 @@ resource "aws_instance" "brb_app" {
 
   monitoring = false
 
-  # Fixed: use user_data_base64 instead of user_data with base64encode
+  # Use IAM Instance Profile for SSM access
+  iam_instance_profile = aws_iam_instance_profile.brb_app.name
+
   user_data_base64 = base64encode(templatefile("${path.module}/user-data.sh", {
     domain          = "brb.elvisquant.com"
     docker_username = var.docker_username
@@ -120,15 +124,39 @@ resource "aws_instance" "brb_app" {
   }
 }
 
-# SSH key pair - FIXED: use public_key directly
-resource "aws_key_pair" "brb_key" {
-  key_name   = "brb-app-key"
-  public_key = var.ssh_public_key
+# IAM Role for EC2 instance to use SSM Session Manager
+resource "aws_iam_role" "brb_app" {
+  name = "brb-app-ec2-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = "sts:AssumeRole"
+        Effect = "Allow"
+        Principal = {
+          Service = "ec2.amazonaws.com"
+        }
+      }
+    ]
+  })
 
   tags = {
-    Name        = "brb-app-key"
+    Name        = "brb-app-ec2-role"
     Environment = "production"
   }
+}
+
+# IAM Instance Profile
+resource "aws_iam_instance_profile" "brb_app" {
+  name = "brb-app-ec2-profile"
+  role = aws_iam_role.brb_app.name
+}
+
+# IAM Policy for SSM Session Manager
+resource "aws_iam_role_policy_attachment" "ssm_managed_instance" {
+  role       = aws_iam_role.brb_app.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
 }
 
 # Get the Route53 hosted zone for elvisquant.com

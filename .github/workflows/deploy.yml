@@ -15,6 +15,13 @@ jobs:
     - name: "📥 Checkout code"
       uses: actions/checkout@v4
 
+    - name: "🔐 Configure AWS"
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: us-east-1
+
     - name: "🐳 Login to Docker"
       uses: docker/login-action@v3
       with:
@@ -33,47 +40,37 @@ jobs:
         build-args: |
           COMMIT_SHA=${{ github.sha }}
 
-    - name: "🚀 Deploy to EC2"
-      uses: appleboy/ssh-action@v1.0.3
-      with:
-        host: ${{ secrets.EC2_IP }}
-        username: ec2-user
-        key: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
-        script: |
-          set -e
-          echo "🎯 Starting deployment..."
-          
-          cd /opt/brb-app
-          
-          # Update environment with new version
-          sudo sed -i "s/IMAGE_TAG=.*/IMAGE_TAG=${{ github.sha }}/" .env
-          sudo sed -i "s/COMMIT_SHA=.*/COMMIT_SHA=${{ github.sha }}/" .env
-          
-          # Ensure docker-compose file exists
-          if [ ! -f docker-compose.prod.yml ]; then
-            curl -o docker-compose.prod.yml \
-              "https://raw.githubusercontent.com/${{ github.repository }}/main/docker-compose.prod.yml"
-          fi
-          
-          # Pull and deploy
-          sudo docker-compose -f docker-compose.prod.yml pull backend
-          sudo docker-compose -f docker-compose.prod.yml up -d
-          
-          # Wait for health check
-          echo "⏳ Waiting for app to be healthy..."
-          for i in {1..10}; do
-            if curl -f http://localhost:8000/health; then
-              echo "✅ App is healthy!"
-              break
-            fi
-            sleep 10
-          done
-          
-          echo "🎉 Deployment successful!"
+    - name: "🚀 Deploy to EC2 using SSM"
+      run: |
+        INSTANCE_ID=$(aws ec2 describe-instances \
+          --filters "Name=tag:Name,Values=brb-app-server" \
+          --query "Reservations[0].Instances[0].InstanceId" \
+          --output text)
+        
+        echo "Instance ID: $INSTANCE_ID"
+        
+        # Send command via SSM to deploy the app
+        aws ssm send-command \
+          --instance-ids $INSTANCE_ID \
+          --document-name "AWS-RunShellScript" \
+          --parameters '{
+            "commands": [
+              "cd /opt/brb-app",
+              "sudo sed -i \"s/IMAGE_TAG=.*/IMAGE_TAG=${{ github.sha }}/\" .env",
+              "sudo sed -i \"s/COMMIT_SHA=.*/COMMIT_SHA=${{ github.sha }}/\" .env",
+              "if [ ! -f docker-compose.prod.yml ]; then curl -o docker-compose.prod.yml https://raw.githubusercontent.com/${{ github.repository }}/main/docker-compose.prod.yml; fi",
+              "sudo docker-compose -f docker-compose.prod.yml pull backend",
+              "sudo docker-compose -f docker-compose.prod.yml up -d",
+              "sleep 30",
+              "curl -f http://localhost:8000/health && echo \"✅ Deployment successful!\" || echo \"❌ Health check failed\""
+            ]
+          }' \
+          --output text
 
     - name: "🌐 Verify Deployment"
       run: |
         echo "🔍 Checking if app is accessible..."
+        sleep 30
         if curl -f -s "https://brb.elvisquant.com/health"; then
           echo "✅ App is live at https://brb.elvisquant.com"
         else

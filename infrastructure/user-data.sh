@@ -101,6 +101,7 @@ cd /opt/brb-app
 sudo -u ec2-user docker-compose -f docker-compose.prod.yml pull || echo "Docker Compose file will be downloaded later"
 sudo -u ec2-user docker-compose -f docker-compose.prod.yml up -d || echo "Docker Compose file will be downloaded later"
 
-echo "✅ EC2 instance setup completed successfully!"
+echo "✅ EC2 instance setup complete!"
 echo "🌐 Your application will be available at: https://brb.elvisquant.com"
+echo "🔧 Use AWS Systems Manager Session Manager to access the instance"
 echo "📊 Check GitHub Actions for deployment status"
