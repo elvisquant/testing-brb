@@ -8,28 +8,19 @@ terraform {
       version = "~> 5.0"
     }
   }
-
-  backend "s3" {
-    bucket         = "brb-app-tf-state-free"
-    key            = "terraform.tfstate"
-    region         = "us-east-1"
-    dynamodb_table = "brb-app-tf-locks"
-    encrypt        = true
-  }
 }
 
 provider "aws" {
   region = "us-east-1"
 }
 
-# S3 Bucket for Terraform state (free for 5GB)
+# Create S3 bucket for Terraform state FIRST
 resource "aws_s3_bucket" "tf_state" {
-  bucket = "brb-app-tf-state-free"
+  bucket = "brb-app-tf-state-2024"
 
   tags = {
     Name        = "BRB App Terraform State"
     Environment = "production"
-    CostCenter  = "free-tier"
   }
 }
 
@@ -50,7 +41,7 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "tf_state" {
   }
 }
 
-# DynamoDB for state locking (free - 25 WCU/RCU)
+# Create DynamoDB table for state locking
 resource "aws_dynamodb_table" "tf_locks" {
   name         = "brb-app-tf-locks"
   billing_mode = "PAY_PER_REQUEST"
@@ -64,11 +55,10 @@ resource "aws_dynamodb_table" "tf_locks" {
   tags = {
     Name        = "BRB App Terraform Locks"
     Environment = "production"
-    CostCenter  = "free-tier"
   }
 }
 
-# Get the default VPC and subnets (free)
+# Get the default VPC and subnets
 data "aws_vpc" "default" {
   default = true
 }
@@ -80,13 +70,12 @@ data "aws_subnets" "default" {
   }
 }
 
-# Security Group (free)
+# Security Group
 resource "aws_security_group" "brb_app_sg" {
   name        = "brb-app-sg"
   description = "Security group for BRB application"
   vpc_id      = data.aws_vpc.default.id
 
-  # SSH access from anywhere
   ingress {
     from_port   = 22
     to_port     = 22
@@ -95,7 +84,6 @@ resource "aws_security_group" "brb_app_sg" {
     description = "SSH access"
   }
 
-  # HTTP access
   ingress {
     from_port   = 80
     to_port     = 80
@@ -104,7 +92,6 @@ resource "aws_security_group" "brb_app_sg" {
     description = "HTTP access"
   }
 
-  # HTTPS access
   ingress {
     from_port   = 443
     to_port     = 443
@@ -113,7 +100,6 @@ resource "aws_security_group" "brb_app_sg" {
     description = "HTTPS access"
   }
 
-  # Outbound internet access
   egress {
     from_port   = 0
     to_port     = 0
@@ -125,11 +111,10 @@ resource "aws_security_group" "brb_app_sg" {
   tags = {
     Name        = "brb-app-sg"
     Environment = "production"
-    CostCenter  = "free-tier"
   }
 }
 
-# Get the latest Amazon Linux 2023 AMI (free tier eligible)
+# Get the latest Amazon Linux 2023 AMI
 data "aws_ami" "amazon_linux_2023" {
   most_recent = true
   owners      = ["amazon"]
@@ -150,22 +135,20 @@ data "aws_ami" "amazon_linux_2023" {
   }
 }
 
-# Free tier EC2 instance - t2.micro (750 hours free per month)
+# EC2 Instance
 resource "aws_instance" "brb_app" {
   ami                    = data.aws_ami.amazon_linux_2023.id
-  instance_type          = "t2.micro"  # Free tier eligible
-  vpc_security_group_ids = [aws_security_group.brb_app_sg.id]
+  instance_type          = "t2.micro"
+  vpc_security_group_ids = [aws_security_group.brb_app.sg.id]
   subnet_id              = data.aws_subnets.default.ids[0]
   key_name               = aws_key_pair.brb_key.key_name
 
-  # Free tier EBS volume - 8GB gp2 (well within 30GB free tier)
   root_block_device {
     volume_type = "gp2"
     volume_size = 8
     encrypted   = true
   }
 
-  # Disable detailed monitoring (basic monitoring is free)
   monitoring = false
 
   user_data = base64encode(templatefile("${path.module}/user-data.sh", {
@@ -179,17 +162,15 @@ resource "aws_instance" "brb_app" {
   tags = {
     Name        = "brb-app-server"
     Environment = "production"
-    CostCenter  = "free-tier"
-    Project     = "brb-app"
   }
 
   depends_on = [
-    aws_security_group.brb_app_sg,
-    aws_key_pair.brb_key
+    aws_s3_bucket.tf_state,
+    aws_dynamodb_table.tf_locks
   ]
 }
 
-# SSH key pair (free)
+# SSH key pair
 resource "aws_key_pair" "brb_key" {
   key_name   = "brb-app-key"
   public_key = var.ssh_public_key
@@ -197,7 +178,6 @@ resource "aws_key_pair" "brb_key" {
   tags = {
     Name        = "brb-app-key"
     Environment = "production"
-    CostCenter  = "free-tier"
   }
 }
 
@@ -218,32 +198,5 @@ resource "aws_route53_record" "brb_app" {
   tags = {
     Name        = "brb-app-dns"
     Environment = "production"
-    CostCenter  = "free-tier"
-  }
-
-  depends_on = [aws_instance.brb_app]
-}
-
-# CloudWatch basic monitoring (free)
-resource "aws_cloudwatch_metric_alarm" "high_cpu" {
-  alarm_name          = "brb-app-high-cpu"
-  comparison_operator = "GreaterThanThreshold"
-  evaluation_periods  = "2"
-  metric_name         = "CPUUtilization"
-  namespace           = "AWS/EC2"
-  period              = "120"
-  statistic           = "Average"
-  threshold           = "80"
-  alarm_description   = "Monitor EC2 CPU utilization - free tier monitoring"
-  alarm_actions       = []  # No SNS to avoid costs
-
-  dimensions = {
-    InstanceId = aws_instance.brb_app.id
-  }
-
-  tags = {
-    Name        = "brb-app-cpu-alarm"
-    Environment = "production"
-    CostCenter  = "free-tier"
   }
 }
