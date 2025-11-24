@@ -1,102 +1,65 @@
-name: "1. 🔐 Initial Setup & Secrets Generation"
+name: "1. 🔐 Initial Setup"
 
 on:
   push:
     branches: [ main ]
 
 jobs:
-  check-and-generate-secrets:
+  setup-secrets:
     runs-on: ubuntu-latest
     steps:
     - name: "📥 Checkout code"
       uses: actions/checkout@v4
 
-    - name: "🔍 Check if secrets exist"
-      id: check-secrets
+    - name: "🔐 Generate DB_PASSWORD if missing"
+      if: ${{ !secrets.DB_PASSWORD }}
       run: |
-        echo "Checking if secrets need to be generated..."
-        # Check if essential secrets exist
-        if [ -n "${{ secrets.DB_PASSWORD }}" ] && [ -n "${{ secrets.EC2_SSH_PUBLIC_KEY }}" ]; then
-          echo "✅ All secrets already exist"
-          echo "skip_generation=true" >> $GITHUB_ENV
-        else
-          echo "🔐 Some secrets are missing, generating..."
-          echo "skip_generation=false" >> $GITHUB_ENV
-        fi
-
-    - name: "🔐 Generate Secrets if Needed"
-      if: env.skip_generation == 'false'
-      run: |
-        echo "🛡️ Generating secure secrets automatically..."
-        
-        # Generate strong database password
         DB_PASSWORD=$(openssl rand -base64 24 | tr -dc 'a-zA-Z0-9' | head -c 24)
         echo "DB_PASSWORD=$DB_PASSWORD" >> secrets.txt
-        
-        # Generate secret key for FastAPI
+        echo "✅ Generated DB_PASSWORD"
+
+    - name: "🔐 Generate SECRET_KEY if missing"
+      if: ${{ !secrets.SECRET_KEY }}
+      run: |
         SECRET_KEY=$(openssl rand -base64 48)
         echo "SECRET_KEY=$SECRET_KEY" >> secrets.txt
-        
-        # Generate SSH key pair for EC2 access
-        ssh-keygen -t rsa -b 4096 -C "brb-app-ec2" -f brb-key -N "" -q
+        echo "✅ Generated SECRET_KEY"
+
+    - name: "🔐 Generate SSH keys if missing"
+      if: ${{ !secrets.EC2_SSH_PUBLIC_KEY }}
+      run: |
+        ssh-keygen -t rsa -b 4096 -C "brb-app" -f brb-key -N "" -q
         EC2_SSH_PRIVATE_KEY=$(cat brb-key | base64 -w 0)
         EC2_SSH_PUBLIC_KEY=$(cat brb-key.pub)
-        
         echo "EC2_SSH_PRIVATE_KEY=$EC2_SSH_PRIVATE_KEY" >> secrets.txt
         echo "EC2_SSH_PUBLIC_KEY=$EC2_SSH_PUBLIC_KEY" >> secrets.txt
-        
-        echo "✅ All secrets generated successfully!"
-        echo "Secrets generated: DB_PASSWORD, SECRET_KEY, EC2_SSH_PRIVATE_KEY, EC2_SSH_PUBLIC_KEY"
+        echo "✅ Generated SSH keys"
 
-    - name: "📤 Save Generated Secrets"
-      if: env.skip_generation == 'false'
+    - name: "📤 Save secrets to GitHub"
+      if: hashFiles('secrets.txt') != ''
       uses: actions/github-script@v7
       with:
         script: |
           const fs = require('fs');
-          
-          if (!fs.existsSync('secrets.txt')) {
-            console.log('❌ No secrets to save - generation was skipped');
-            return;
-          }
-          
-          const secretsContent = fs.readFileSync('secrets.txt', 'utf8');
-          const lines = secretsContent.split('\n');
-          
-          let savedCount = 0;
-          for (const line of lines) {
-            const [key, value] = line.split('=');
-            if (key && value) {
-              try {
+          if (fs.existsSync('secrets.txt')) {
+            const content = fs.readFileSync('secrets.txt', 'utf8');
+            const lines = content.split('\n');
+            for (const line of lines) {
+              const [key, value] = line.split('=');
+              if (key && value) {
                 await github.rest.actions.createOrUpdateRepoSecret({
                   owner: context.repo.owner,
                   repo: context.repo.repo,
                   secret_name: key.trim(),
                   encrypted_value: value.trim()
                 });
-                console.log(`✅ Saved: ${key.trim()}`);
-                savedCount++;
-              } catch (error) {
-                console.log(`⚠️ Could not save ${key}:`, error.message);
+                console.log(`✅ Saved ${key.trim()}`);
               }
             }
           }
-          
-          console.log(`🎉 Saved ${savedCount} secrets to GitHub`);
 
     - name: "🧹 Cleanup"
-      if: always()
-      run: |
-        rm -f secrets.txt brb-key brb-key.pub
+      run: rm -f secrets.txt brb-key brb-key.pub
 
-    - name: "📋 Setup Complete"
-      run: |
-        echo "🎯 INITIAL SETUP COMPLETE"
-        echo "========================"
-        if [ "${{ env.skip_generation }}" == "true" ]; then
-          echo "✅ All secrets already exist - skipping generation"
-        else
-          echo "✅ Secrets generated and saved successfully"
-        fi
-        echo "🚀 Infrastructure deployment will now start..."
-        ######
+    - name: "📋 Setup complete"
+      run: echo "✅ Initial setup complete - secrets are ready"
