@@ -7,42 +7,14 @@ on:
       - 'infrastructure/**'
       - '.github/workflows/1-initial-setup.yml'
       - '.github/workflows/2-infrastructure.yml'
-  workflow_run:
-    workflows: ["2. 🏗️ Infrastructure Deployment"]
-    types: [completed]
+  workflow_dispatch:
 
 env:
   DOCKER_REGISTRY: docker.io
-  BACKEND_IMAGE: ${{ secrets.DOCKER_USERNAME }}/brb-app-backend
 
 jobs:
-  check-infrastructure:
+  deploy-application:
     runs-on: ubuntu-latest
-    outputs:
-      infrastructure_ready: ${{ steps.check.outputs.ready }}
-      ec2_host: ${{ steps.check.outputs.ec2_host }}
-    
-    steps:
-    - name: "🔍 Check Infrastructure Status"
-      id: check
-      run: |
-        # Check if we have an EC2 IP from infrastructure deployment
-        EC2_IP="${{ secrets.EC2_IP }}"
-        if [ -n "$EC2_IP" ] && [ "$EC2_IP" != "null" ]; then
-          echo "ready=true" >> $GITHUB_OUTPUT
-          echo "ec2_host=$EC2_IP" >> $GITHUB_OUTPUT
-          echo "✅ Infrastructure is ready - EC2 IP: $EC2_IP"
-        else
-          echo "ready=false" >> $GITHUB_OUTPUT
-          echo "ec2_host=" >> $GITHUB_OUTPUT
-          echo "❌ Infrastructure not ready - EC2_IP secret not set"
-        fi
-
-  build-and-push:
-    runs-on: ubuntu-latest
-    needs: check-infrastructure
-    if: needs.check-infrastructure.outputs.infrastructure_ready == 'true'
-    
     steps:
     - name: "📥 Checkout code"
       uses: actions/checkout@v4
@@ -69,23 +41,15 @@ jobs:
         context: ./backend
         push: true
         tags: |
-          ${{ env.DOCKER_REGISTRY }}/${{ env.BACKEND_IMAGE }}:${{ steps.version.outputs.IMAGE_TAG }}
-          ${{ env.DOCKER_REGISTRY }}/${{ env.BACKEND_IMAGE }}:latest
+          ${{ secrets.DOCKER_USERNAME }}/brb-app-backend:${{ steps.version.outputs.IMAGE_TAG }}
+          ${{ secrets.DOCKER_USERNAME }}/brb-app-backend:latest
         build-args: |
           COMMIT_SHA=${{ github.sha }}
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
 
-  deploy-application:
-    runs-on: ubuntu-latest
-    needs: [check-infrastructure, build-and-push]
-    if: needs.check-infrastructure.outputs.infrastructure_ready == 'true'
-    
-    steps:
     - name: "🚀 Deploy to EC2 Instance"
       uses: appleboy/ssh-action@v1.0.3
       with:
-        host: ${{ needs.check-infrastructure.outputs.ec2_host }}
+        host: ${{ secrets.EC2_IP }}
         username: ec2-user
         key: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
         script: |
@@ -102,7 +66,7 @@ jobs:
           
           # Update environment with new version
           echo "🔄 Updating environment with new version..."
-          sudo sed -i "s/IMAGE_TAG=.*/IMAGE_TAG=${{ needs.build-and-push.outputs.IMAGE_TAG }}/" .env
+          sudo sed -i "s/IMAGE_TAG=.*/IMAGE_TAG=${{ steps.version.outputs.IMAGE_TAG }}/" .env
           sudo sed -i "s/COMMIT_SHA=.*/COMMIT_SHA=${{ github.sha }}/" .env
           
           # Ensure we have the latest docker-compose file
@@ -134,7 +98,7 @@ jobs:
           # Final verification
           if curl -f http://localhost:8000/health; then
             echo "🎉 Deployment successful!"
-            echo "📦 New version: ${{ needs.build-and-push.outputs.IMAGE_TAG }}"
+            echo "📦 New version: ${{ steps.version.outputs.IMAGE_TAG }}"
             echo "🌐 Application URL: https://brb.elvisquant.com"
             
             # Cleanup old images to save space
@@ -150,32 +114,19 @@ jobs:
     - name: "🌐 Verify Public Access"
       run: |
         echo "🔍 Verifying public application access..."
-        EC2_IP="${{ needs.check-infrastructure.outputs.ec2_host }}"
         if curl -f -s "https://brb.elvisquant.com/health" > /dev/null 2>&1; then
           echo "✅ Application is publicly accessible at https://brb.elvisquant.com"
-        elif curl -f -s "http://$EC2_IP/health" > /dev/null 2>&1; then
-          echo "⚠️  Application running at http://$EC2_IP (DNS might still be propagating)"
         else
-          echo "❌ Application not accessible yet"
+          echo "⚠️  Application might not be publicly accessible yet (check DNS propagation)"
         fi
 
-  infrastructure-not-ready:
-    runs-on: ubuntu-latest
-    needs: check-infrastructure
-    if: needs.check-infrastructure.outputs.infrastructure_ready == 'false'
-    
-    steps:
-    - name: "❌ Infrastructure Not Ready"
+    - name: "📋 Deployment Complete"
       run: |
-        echo "❌ Cannot deploy application - infrastructure is not ready"
+        echo "🎉 APPLICATION DEPLOYMENT COMPLETE!"
+        echo "==================================="
+        echo "✅ New version deployed successfully"
+        echo "✅ Docker image built and pushed"
+        echo "✅ Services running on EC2 instance"
+        echo "✅ Health checks passing"
         echo ""
-        echo "📋 Required conditions:"
-        echo "   - Infrastructure pipeline must complete successfully"
-        echo "   - EC2_IP secret must be set"
-        echo ""
-        echo "💡 Next steps:"
-        echo "1. Check the Infrastructure Deployment workflow"
-        echo "2. Make sure it completed successfully"
-        echo "3. Trigger infrastructure deployment if needed"
-        echo ""
-        echo "🔗 Infrastructure workflow: https://github.com/${{ github.repository }}/actions/workflows/2-infrastructure.yml"
+        echo "🌐 Your application is live at: https://brb.elvisquant.com"

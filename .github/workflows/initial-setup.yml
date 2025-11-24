@@ -1,33 +1,15 @@
 name: "1. 🔐 Initial Setup & Secrets Generation"
 
 on:
+  workflow_dispatch:  # Manual trigger only
   push:
     branches: [ main ]
-  workflow_dispatch:  # Allow manual trigger
-
-env:
-  AWS_REGION: 'us-east-1'
+    paths:
+      - '.github/workflows/1-initial-setup.yml'
 
 jobs:
-  check-initialized:
-    runs-on: ubuntu-latest
-    outputs:
-      initialized: ${{ steps.check.outputs.initialized }}
-    
-    steps:
-    - name: "🔍 Check if Already Initialized"
-      id: check
-      run: |
-        # This step always runs, we'll check secrets in the next job conditionally
-        echo "Checking initialization status..."
-        echo "initialized=true" >> $GITHUB_OUTPUT
-
   generate-secrets:
     runs-on: ubuntu-latest
-    needs: check-initialized
-    # Only run if INITIALIZED secret doesn't exist or is not 'true'
-    if: ${{ !contains(fromJSON('["true"]'), secrets.INITIALIZED) }}
-    
     steps:
     - name: "📥 Checkout code"
       uses: actions/checkout@v4
@@ -37,108 +19,168 @@ jobs:
       run: |
         echo "🛡️ Generating secure secrets automatically..."
         
-        # Generate strong database password (24 characters)
-        DB_PASSWORD=$(openssl rand -base64 24 | tr -dc 'a-zA-Z0-9!@#$%' | head -c 24)
-        echo "DB_PASSWORD=$DB_PASSWORD" >> secrets.env
+        # Generate strong database password
+        DB_PASSWORD=$(openssl rand -base64 24 | tr -dc 'a-zA-Z0-9' | head -c 24)
+        echo "DB_PASSWORD=$DB_PASSWORD"
         
-        # Generate secret key for FastAPI (48 characters)
+        # Generate secret key for FastAPI
         SECRET_KEY=$(openssl rand -base64 48)
-        echo "SECRET_KEY=$SECRET_KEY" >> secrets.env
+        echo "SECRET_KEY=$SECRET_KEY"
         
         # Generate SSH key pair for EC2 access
-        ssh-keygen -t rsa -b 4096 -C "brb-app-ec2@brb.elvisquant.com" -f brb-key -N "" -q
+        ssh-keygen -t rsa -b 4096 -C "brb-app-ec2" -f brb-key -N "" -q
         EC2_SSH_PRIVATE_KEY=$(cat brb-key | base64 -w 0)
         EC2_SSH_PUBLIC_KEY=$(cat brb-key.pub)
         
-        echo "EC2_SSH_PRIVATE_KEY=$EC2_SSH_PRIVATE_KEY" >> secrets.env
-        echo "EC2_SSH_PUBLIC_KEY=$EC2_SSH_PUBLIC_KEY" >> secrets.env
+        echo "EC2_SSH_PRIVATE_KEY=$EC2_SSH_PRIVATE_KEY"
+        echo "EC2_SSH_PUBLIC_KEY=$EC2_SSH_PUBLIC_KEY"
+        
+        # Save to files for next steps
+        echo "$DB_PASSWORD" > db_password.txt
+        echo "$SECRET_KEY" > secret_key.txt
+        echo "$EC2_SSH_PRIVATE_KEY" > ssh_private_key.txt
+        echo "$EC2_SSH_PUBLIC_KEY" > ssh_public_key.txt
         
         echo "✅ All secrets generated successfully!"
-        echo "🔑 Public Key: $EC2_SSH_PUBLIC_KEY"
 
-    - name: "📤 Save Secrets to GitHub"
+    - name: "📤 Save DB_PASSWORD to GitHub Secrets"
       uses: actions/github-script@v7
       env:
-        SECRETS_FILE: secrets.env
+        DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
       with:
         script: |
           const fs = require('fs');
-          const crypto = require('crypto');
+          const dbPassword = fs.readFileSync('db_password.txt', 'utf8').trim();
           
-          console.log('💾 Saving secrets to GitHub...');
-          
-          // Read generated secrets
-          const secretsContent = fs.readFileSync('${{ env.SECRETS_FILE }}', 'utf8');
-          const secrets = {};
-          
-          secretsContent.split('\n').forEach(line => {
-            const [key, value] = line.split('=');
-            if (key && value) {
-              secrets[key] = value;
-            }
-          });
-          
-          // Get public key for encryption
-          const { data: publicKey } = await github.rest.actions.getRepoPublicKey({
-            owner: context.repo.owner,
-            repo: context.repo.repo,
-          });
-          
-          // Save each secret to GitHub
-          for (const [key, value] of Object.entries(secrets)) {
-            try {
-              await github.rest.actions.createOrUpdateRepoSecret({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                secret_name: key,
-                encrypted_value: value,
-                key_id: publicKey.key_id,
-              });
-              console.log(`✅ Saved: ${key}`);
-            } catch (error) {
-              console.log(`❌ Failed to save ${key}:`, error.message);
-            }
+          if (!dbPassword) {
+            console.log('❌ No DB_PASSWORD generated');
+            return;
           }
           
-          // Mark as initialized
-          await github.rest.actions.createOrUpdateRepoSecret({
-            owner: context.repo.owner,
-            repo: context.repo.repo,
-            secret_name: 'INITIALIZED',
-            encrypted_value: 'true',
-            key_id: publicKey.key_id,
-          });
+          try {
+            await github.rest.actions.createOrUpdateRepoSecret({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              secret_name: 'DB_PASSWORD',
+              encrypted_value: dbPassword
+            });
+            console.log('✅ DB_PASSWORD saved successfully');
+          } catch (error) {
+            console.log('❌ Failed to save DB_PASSWORD:', error.message);
+          }
+
+    - name: "📤 Save SECRET_KEY to GitHub Secrets"
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const fs = require('fs');
+          const secretKey = fs.readFileSync('secret_key.txt', 'utf8').trim();
           
-          console.log('🎉 All secrets saved! Project is ready for infrastructure deployment.');
+          if (!secretKey) {
+            console.log('❌ No SECRET_KEY generated');
+            return;
+          }
+          
+          try {
+            await github.rest.actions.createOrUpdateRepoSecret({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              secret_name: 'SECRET_KEY',
+              encrypted_value: secretKey
+            });
+            console.log('✅ SECRET_KEY saved successfully');
+          } catch (error) {
+            console.log('❌ Failed to save SECRET_KEY:', error.message);
+          }
+
+    - name: "📤 Save EC2_SSH_PRIVATE_KEY to GitHub Secrets"
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const fs = require('fs');
+          const sshPrivateKey = fs.readFileSync('ssh_private_key.txt', 'utf8').trim();
+          
+          if (!sshPrivateKey) {
+            console.log('❌ No EC2_SSH_PRIVATE_KEY generated');
+            return;
+          }
+          
+          try {
+            await github.rest.actions.createOrUpdateRepoSecret({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              secret_name: 'EC2_SSH_PRIVATE_KEY',
+              encrypted_value: sshPrivateKey
+            });
+            console.log('✅ EC2_SSH_PRIVATE_KEY saved successfully');
+          } catch (error) {
+            console.log('❌ Failed to save EC2_SSH_PRIVATE_KEY:', error.message);
+          }
+
+    - name: "📤 Save EC2_SSH_PUBLIC_KEY to GitHub Secrets"
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const fs = require('fs');
+          const sshPublicKey = fs.readFileSync('ssh_public_key.txt', 'utf8').trim();
+          
+          if (!sshPublicKey) {
+            console.log('❌ No EC2_SSH_PUBLIC_KEY generated');
+            return;
+          }
+          
+          try {
+            await github.rest.actions.createOrUpdateRepoSecret({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              secret_name: 'EC2_SSH_PUBLIC_KEY',
+              encrypted_value: sshPublicKey
+            });
+            console.log('✅ EC2_SSH_PUBLIC_KEY saved successfully');
+          } catch (error) {
+            console.log('❌ Failed to save EC2_SSH_PUBLIC_KEY:', error.message);
+          }
+
+    - name: "📤 Mark as INITIALIZED"
+      uses: actions/github-script@v7
+      with:
+        script: |
+          try {
+            await github.rest.actions.createOrUpdateRepoSecret({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              secret_name: 'INITIALIZED',
+              encrypted_value: 'true'
+            });
+            console.log('✅ INITIALIZED flag set to true');
+          } catch (error) {
+            console.log('❌ Failed to set INITIALIZED:', error.message);
+          }
 
     - name: "🧹 Cleanup Temporary Files"
       if: always()
       run: |
-        rm -f secrets.env brb-key brb-key.pub
+        rm -f db_password.txt secret_key.txt ssh_private_key.txt ssh_public_key.txt brb-key brb-key.pub
 
-  already-initialized:
-    runs-on: ubuntu-latest
-    needs: check-initialized
-    if: ${{ contains(fromJSON('["true"]'), secrets.INITIALIZED) }}
-    
-    steps:
-    - name: "✅ Already Initialized"
+    - name: "📋 Setup Complete"
       run: |
-        echo "✅ Project is already initialized with secrets."
-        echo "🚀 Proceeding to infrastructure deployment..."
-
-  final-status:
-    runs-on: ubuntu-latest
-    needs: [generate-secrets, already-initialized]
-    if: always()
-    
-    steps:
-    - name: "📋 Setup Status"
-      run: |
-        echo "🎯 INITIAL SETUP COMPLETE"
-        echo "========================"
-        echo "✅ Secrets generation: ${{ needs.generate-secrets.result || 'skipped' }}"
-        echo "✅ Initialization status: ${{ secrets.INITIALIZED || 'not set' }}"
+        echo "🎉 INITIAL SETUP COMPLETE!"
+        echo "=========================="
+        echo "✅ All secrets have been generated and saved"
         echo ""
-        echo "📝 Next: Infrastructure deployment will run automatically"
-        echo "🌐 Your app will be at: https://brb.elvisquant.com"
+        echo "📝 NEXT STEPS:"
+        echo "1. Go to Repository Settings → Secrets → Actions"
+        echo "2. Verify these secrets exist:"
+        echo "   - DB_PASSWORD"
+        echo "   - SECRET_KEY" 
+        echo "   - EC2_SSH_PRIVATE_KEY"
+        echo "   - EC2_SSH_PUBLIC_KEY"
+        echo "   - INITIALIZED"
+        echo ""
+        echo "3. Make sure these MANUAL secrets are also set:"
+        echo "   - DOCKER_USERNAME"
+        echo "   - DOCKER_PASSWORD"
+        echo "   - AWS_ACCESS_KEY_ID"
+        echo "   - AWS_SECRET_ACCESS_KEY"
+        echo ""
+        echo "4. Push any change to trigger infrastructure deployment"
