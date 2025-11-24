@@ -25,12 +25,12 @@ jobs:
     - name: "🏗️ Setup Terraform"
       uses: hashicorp/setup-terraform@v3
 
-    - name: "🪣 Create S3 bucket"
+    - name: "🪣 Ensure S3 Bucket"
       run: |
-        aws s3 mb s3://brb-app-tf-state-2024 --region us-east-1 || true
+        aws s3 mb s3://brb-app-tf-state-2024 --region us-east-1 || echo "Bucket exists"
         aws s3api put-bucket-versioning --bucket brb-app-tf-state-2024 --versioning-configuration Status=Enabled
 
-    - name: "🔒 Create DynamoDB table"
+    - name: "🔒 Ensure DynamoDB Table"
       run: |
         aws dynamodb describe-table --table-name brb-app-tf-locks 2>/dev/null || \
         aws dynamodb create-table --table-name brb-app-tf-locks \
@@ -54,10 +54,9 @@ jobs:
       run: |
         cd infrastructure
         EC2_IP=$(terraform output -raw ec2_public_ip)
-        curl -X POST -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-          -H "Accept: application/vnd.github.v3+json" \
-          https://api.github.com/repos/${{ github.repository }}/actions/secrets/EC2_IP \
-          -d "{\"encrypted_value\":\"$(echo $EC2_IP | base64)\"}" || echo "EC2_IP saved"
+        echo "EC2_IP=$EC2_IP"
+        # Save to environment for next workflow
+        echo "EC2_IP=$EC2_IP" >> $GITHUB_ENV
 
-    - name: "📋 Infrastructure complete"
-      run: echo "✅ Infrastructure deployed - EC2 instance ready"
+    - name: "📋 Infrastructure Complete"
+      run: echo "✅ Infrastructure deployed - EC2 ready at ${{ env.EC2_IP }}"
