@@ -6,7 +6,7 @@ on:
     paths:
       - 'infrastructure/**'
       - 'docker-compose.prod.yml'
-  workflow_dispatch:  # Allow manual trigger
+  workflow_dispatch:
   workflow_run:
     workflows: ["1. 🔐 Initial Setup & Secrets Generation"]
     types: [completed]
@@ -15,47 +15,49 @@ env:
   AWS_REGION: 'us-east-1'
 
 jobs:
-  check-prerequisites:
+  check-secrets:
     runs-on: ubuntu-latest
     outputs:
-      ready: ${{ steps.check.outputs.ready }}
+      all_secrets_exist: ${{ steps.check.outputs.all_exist }}
       missing_secrets: ${{ steps.check.outputs.missing }}
     
     steps:
     - name: "🔍 Check Required Secrets"
       id: check
+      env:
+        REQUIRED_SECRETS: '["DOCKER_USERNAME", "DOCKER_PASSWORD", "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "DB_PASSWORD", "SECRET_KEY", "EC2_SSH_PUBLIC_KEY"]'
       run: |
-        REQUIRED_SECRETS=(
-          "DOCKER_USERNAME"
-          "DOCKER_PASSWORD"
-          "AWS_ACCESS_KEY_ID" 
-          "AWS_SECRET_ACCESS_KEY"
-          "DB_PASSWORD"
-          "SECRET_KEY"
-          "EC2_SSH_PUBLIC_KEY"
-        )
+        echo "Checking required secrets..."
         
+        # Convert JSON string to array
+        secrets_array=$(echo '${{ env.REQUIRED_SECRETS }}' | jq -r '.[]')
         missing=""
-        for secret in "${REQUIRED_SECRETS[@]}"; do
-          if [ -z "${{ secrets[secret] }}" ]; then
+        all_exist="true"
+        
+        for secret in $secrets_array; do
+          secret_value="${{ secrets[secret] }}"
+          if [ -z "$secret_value" ] || [ "$secret_value" = "null" ]; then
+            echo "❌ Missing: $secret"
             missing="$missing $secret"
+            all_exist="false"
+          else
+            echo "✅ Found: $secret"
           fi
         done
         
-        if [ -z "$missing" ]; then
-          echo "ready=true" >> $GITHUB_OUTPUT
-          echo "missing_secrets=" >> $GITHUB_OUTPUT
+        echo "all_exist=$all_exist" >> $GITHUB_OUTPUT
+        echo "missing_secrets=$missing" >> $GITHUB_OUTPUT
+        
+        if [ "$all_exist" = "true" ]; then
           echo "✅ All required secrets are available"
         else
-          echo "ready=false" >> $GITHUB_OUTPUT
-          echo "missing_secrets=$missing" >> $GITHUB_OUTPUT
           echo "❌ Missing secrets: $missing"
         fi
 
   deploy-infrastructure:
     runs-on: ubuntu-latest
-    needs: check-prerequisites
-    if: needs.check-prerequisites.outputs.ready == 'true'
+    needs: check-secrets
+    if: needs.check-secrets.outputs.all_secrets_exist == 'true'
     
     steps:
     - name: "📥 Checkout code"
@@ -117,22 +119,23 @@ jobs:
 
   prerequisites-not-met:
     runs-on: ubuntu-latest
-    needs: check-prerequisites
-    if: needs.check-prerequisites.outputs.ready == 'false'
+    needs: check-secrets
+    if: needs.check-secrets.outputs.all_secrets_exist == 'false'
     
     steps:
     - name: "❌ Prerequisites Not Met"
       run: |
         echo "❌ Cannot deploy infrastructure - missing secrets:"
-        echo "${{ needs.check-prerequisites.outputs.missing_secrets }}"
+        echo "${{ needs.check-secrets.outputs.missing_secrets }}"
         echo ""
         echo "📋 Please ensure all required secrets are set in GitHub:"
-        echo "   - DOCKER_USERNAME"
-        echo "   - DOCKER_PASSWORD"
-        echo "   - AWS_ACCESS_KEY_ID"
-        echo "   - AWS_SECRET_ACCESS_KEY"
-        echo "   - DB_PASSWORD" 
-        echo "   - SECRET_KEY"
-        echo "   - EC2_SSH_PUBLIC_KEY"
+        echo "   - DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME && '✅' || '❌' }}"
+        echo "   - DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD && '✅' || '❌' }}"
+        echo "   - AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID && '✅' || '❌' }}"
+        echo "   - AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY && '✅' || '❌' }}"
+        echo "   - DB_PASSWORD: ${{ secrets.DB_PASSWORD && '✅' || '❌' }}"
+        echo "   - SECRET_KEY: ${{ secrets.SECRET_KEY && '✅' || '❌' }}"
+        echo "   - EC2_SSH_PUBLIC_KEY: ${{ secrets.EC2_SSH_PUBLIC_KEY && '✅' || '❌' }}"
         echo ""
         echo "💡 The initial setup workflow should generate most secrets automatically."
+        echo "🔗 Check workflow: https://github.com/${{ github.repository }}/actions/workflows/1-initial-setup.yml"

@@ -19,7 +19,7 @@ jobs:
   check-infrastructure:
     runs-on: ubuntu-latest
     outputs:
-      ready: ${{ steps.check.outputs.ready }}
+      infrastructure_ready: ${{ steps.check.outputs.ready }}
       ec2_host: ${{ steps.check.outputs.ec2_host }}
     
     steps:
@@ -27,10 +27,11 @@ jobs:
       id: check
       run: |
         # Check if we have an EC2 IP from infrastructure deployment
-        if [ -n "${{ secrets.EC2_IP }}" ] && [ "${{ secrets.EC2_IP }}" != "null" ]; then
+        EC2_IP="${{ secrets.EC2_IP }}"
+        if [ -n "$EC2_IP" ] && [ "$EC2_IP" != "null" ]; then
           echo "ready=true" >> $GITHUB_OUTPUT
-          echo "ec2_host=${{ secrets.EC2_IP }}" >> $GITHUB_OUTPUT
-          echo "✅ Infrastructure is ready - EC2 IP: ${{ secrets.EC2_IP }}"
+          echo "ec2_host=$EC2_IP" >> $GITHUB_OUTPUT
+          echo "✅ Infrastructure is ready - EC2 IP: $EC2_IP"
         else
           echo "ready=false" >> $GITHUB_OUTPUT
           echo "ec2_host=" >> $GITHUB_OUTPUT
@@ -40,7 +41,7 @@ jobs:
   build-and-push:
     runs-on: ubuntu-latest
     needs: check-infrastructure
-    if: needs.check-infrastructure.outputs.ready == 'true'
+    if: needs.check-infrastructure.outputs.infrastructure_ready == 'true'
     
     steps:
     - name: "📥 Checkout code"
@@ -78,7 +79,7 @@ jobs:
   deploy-application:
     runs-on: ubuntu-latest
     needs: [check-infrastructure, build-and-push]
-    if: needs.check-infrastructure.outputs.ready == 'true'
+    if: needs.check-infrastructure.outputs.infrastructure_ready == 'true'
     
     steps:
     - name: "🚀 Deploy to EC2 Instance"
@@ -149,16 +150,19 @@ jobs:
     - name: "🌐 Verify Public Access"
       run: |
         echo "🔍 Verifying public application access..."
+        EC2_IP="${{ needs.check-infrastructure.outputs.ec2_host }}"
         if curl -f -s "https://brb.elvisquant.com/health" > /dev/null 2>&1; then
           echo "✅ Application is publicly accessible at https://brb.elvisquant.com"
+        elif curl -f -s "http://$EC2_IP/health" > /dev/null 2>&1; then
+          echo "⚠️  Application running at http://$EC2_IP (DNS might still be propagating)"
         else
-          echo "⚠️  Application might not be publicly accessible yet (SSL might be provisioning)"
+          echo "❌ Application not accessible yet"
         fi
 
   infrastructure-not-ready:
     runs-on: ubuntu-latest
     needs: check-infrastructure
-    if: needs.check-infrastructure.outputs.ready == 'false'
+    if: needs.check-infrastructure.outputs.infrastructure_ready == 'false'
     
     steps:
     - name: "❌ Infrastructure Not Ready"
