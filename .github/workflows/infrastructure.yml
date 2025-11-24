@@ -3,17 +3,40 @@ name: "2. 🏗️ Infrastructure Deployment"
 on:
   push:
     branches: [ main ]
-    paths:
-      - 'infrastructure/**'
-      - 'docker-compose.prod.yml'
-  workflow_dispatch:
+  workflow_run:
+    workflows: ["1. 🔐 Initial Setup & Secrets Generation"]
+    types: [completed]
 
 env:
   AWS_REGION: 'us-east-1'
 
 jobs:
+  check-infrastructure:
+    runs-on: ubuntu-latest
+    outputs:
+      infrastructure_ready: ${{ steps.check.outputs.ready }}
+      ec2_ip: ${{ steps.check.outputs.ec2_ip }}
+    
+    steps:
+    - name: "🔍 Check if infrastructure exists"
+      id: check
+      run: |
+        # Check if EC2_IP secret exists and has value
+        if [ -n "${{ secrets.EC2_IP }}" ] && [ "${{ secrets.EC2_IP }}" != "null" ]; then
+          echo "ready=true" >> $GITHUB_OUTPUT
+          echo "ec2_ip=${{ secrets.EC2_IP }}" >> $GITHUB_OUTPUT
+          echo "✅ Infrastructure already exists - EC2 IP: ${{ secrets.EC2_IP }}"
+        else
+          echo "ready=false" >> $GITHUB_OUTPUT
+          echo "ec2_ip=" >> $GITHUB_OUTPUT
+          echo "🏗️ Infrastructure needs to be created"
+        fi
+
   deploy-infrastructure:
     runs-on: ubuntu-latest
+    needs: check-infrastructure
+    if: needs.check-infrastructure.outputs.infrastructure_ready == 'false'
+    
     steps:
     - name: "📥 Checkout code"
       uses: actions/checkout@v4
@@ -33,7 +56,7 @@ jobs:
         cd infrastructure
         terraform init -input=false
 
-    - name: "📊 Plan Infrastructure Changes"
+    - name: "📊 Plan Infrastructure"
       run: |
         cd infrastructure
         terraform plan -no-color -input=false \
@@ -43,7 +66,7 @@ jobs:
           -var="secret_key=${{ secrets.SECRET_KEY }}" \
           -var="ssh_public_key=${{ secrets.EC2_SSH_PUBLIC_KEY }}"
 
-    - name: "🚀 Apply Infrastructure Changes"
+    - name: "🚀 Apply Infrastructure"
       run: |
         cd infrastructure
         terraform apply -auto-approve -input=false \
@@ -53,17 +76,23 @@ jobs:
           -var="secret_key=${{ secrets.SECRET_KEY }}" \
           -var="ssh_public_key=${{ secrets.EC2_SSH_PUBLIC_KEY }}"
 
-    - name: "💾 Save EC2 IP to GitHub Secrets"
+    - name: "💾 Save EC2 IP"
+      id: save-ip
+      run: |
+        cd infrastructure
+        EC2_IP=$(terraform output -raw ec2_public_ip)
+        echo "EC2_IP=$EC2_IP" >> $GITHUB_ENV
+        echo "EC2_HOST=$EC2_IP" >> $GITHUB_ENV
+
+    - name: "📤 Update EC2 IP Secret"
       uses: actions/github-script@v7
+      env:
+        EC2_IP: ${{ env.EC2_IP }}
       with:
         script: |
-          const { execSync } = require('child_process');
-          
-          try {
-            // Get EC2 IP from Terraform output
-            const ec2Ip = execSync('cd infrastructure && terraform output -raw ec2_public_ip', { encoding: 'utf8' }).trim();
-            
-            if (ec2Ip && ec2Ip !== 'null') {
+          const ec2Ip = process.env.EC2_IP;
+          if (ec2Ip && ec2Ip !== 'null') {
+            try {
               await github.rest.actions.createOrUpdateRepoSecret({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
@@ -71,25 +100,20 @@ jobs:
                 encrypted_value: ec2Ip
               });
               console.log(`✅ EC2_IP saved: ${ec2Ip}`);
-            } else {
-              console.log('❌ No EC2 IP found in Terraform outputs');
+            } catch (error) {
+              console.log('❌ Failed to save EC2_IP:', error.message);
             }
-          } catch (error) {
-            console.log('❌ Failed to get/save EC2 IP:', error.message);
           }
 
-    - name: "📡 Wait for EC2 Readiness"
-      run: |
-        echo "⏳ Waiting for EC2 instance to be ready..."
-        # This will be handled in the deployment step
-
+  infrastructure-complete:
+    runs-on: ubuntu-latest
+    needs: [check-infrastructure, deploy-infrastructure]
+    steps:
     - name: "📋 Infrastructure Status"
       run: |
-        echo "🎉 INFRASTRUCTURE DEPLOYMENT COMPLETE!"
-        echo "======================================"
-        echo "✅ EC2 instance created and configured"
-        echo "✅ Route53 record created: brb.elvisquant.com"
-        echo "✅ Security groups configured"
-        echo ""
-        echo "🌐 Your application will be available at: https://brb.elvisquant.com"
-        echo "📝 Application deployment will run automatically"
+        echo "🎯 INFRASTRUCTURE PHASE COMPLETE"
+        echo "================================"
+        echo "✅ Infrastructure check: ${{ needs.check-infrastructure.result }}"
+        echo "✅ Infrastructure deployment: ${{ needs.deploy-infrastructure.result || 'skipped' }}"
+        echo "🌐 EC2 IP: ${{ needs.check-infrastructure.outputs.ec2_ip || needs.deploy-infrastructure.outputs.ec2_ip }}"
+        echo "🚀 Proceeding to application deployment..."

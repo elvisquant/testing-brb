@@ -7,14 +7,39 @@ on:
       - 'infrastructure/**'
       - '.github/workflows/1-initial-setup.yml'
       - '.github/workflows/2-infrastructure.yml'
-  workflow_dispatch:
+  workflow_run:
+    workflows: ["2. 🏗️ Infrastructure Deployment"]
+    types: [completed]
 
 env:
   DOCKER_REGISTRY: docker.io
 
 jobs:
+  check-readiness:
+    runs-on: ubuntu-latest
+    outputs:
+      ready: ${{ steps.check.outputs.ready }}
+      ec2_host: ${{ steps.check.outputs.ec2_host }}
+    
+    steps:
+    - name: "🔍 Check if ready for deployment"
+      id: check
+      run: |
+        if [ -n "${{ secrets.EC2_IP }}" ] && [ "${{ secrets.EC2_IP }}" != "null" ]; then
+          echo "ready=true" >> $GITHUB_OUTPUT
+          echo "ec2_host=${{ secrets.EC2_IP }}" >> $GITHUB_OUTPUT
+          echo "✅ Ready for deployment - EC2 IP: ${{ secrets.EC2_IP }}"
+        else
+          echo "ready=false" >> $GITHUB_OUTPUT
+          echo "ec2_host=" >> $GITHUB_OUTPUT
+          echo "❌ Not ready - EC2_IP secret missing"
+        fi
+
   deploy-application:
     runs-on: ubuntu-latest
+    needs: check-readiness
+    if: needs.check-readiness.outputs.ready == 'true'
+    
     steps:
     - name: "📥 Checkout code"
       uses: actions/checkout@v4
@@ -28,17 +53,17 @@ jobs:
         username: ${{ secrets.DOCKER_USERNAME }}
         password: ${{ secrets.DOCKER_PASSWORD }}
 
-    - name: "🏷️ Extract version information"
+    - name: "🏷️ Get version"
       id: version
       run: |
         echo "SHORT_SHA=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
         echo "IMAGE_TAG=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
-        echo "✅ Version: $(git rev-parse --short HEAD)"
 
     - name: "🏗️ Build and push Docker image"
       uses: docker/build-push-action@v5
       with:
-        context: ./backend
+        context: .  # Changed from ./backend to root since Dockerfile is in root
+        file: ./Dockerfile
         push: true
         tags: |
           ${{ secrets.DOCKER_USERNAME }}/brb-app-backend:${{ steps.version.outputs.IMAGE_TAG }}
@@ -46,87 +71,82 @@ jobs:
         build-args: |
           COMMIT_SHA=${{ github.sha }}
 
-    - name: "🚀 Deploy to EC2 Instance"
+    - name: "🚀 Deploy to EC2"
       uses: appleboy/ssh-action@v1.0.3
       with:
-        host: ${{ secrets.EC2_IP }}
+        host: ${{ needs.check-readiness.outputs.ec2_host }}
         username: ec2-user
         key: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
         script: |
           set -e
-          echo "🎯 Starting application deployment..."
+          echo "🎯 Starting deployment..."
           
-          # Wait for Docker to be ready
+          # Wait for Docker
           until docker info > /dev/null 2>&1; do
-            echo "⏳ Waiting for Docker to be ready..."
+            echo "⏳ Waiting for Docker..."
             sleep 10
           done
           
           cd /opt/brb-app
           
-          # Update environment with new version
-          echo "🔄 Updating environment with new version..."
+          # Update environment
+          echo "🔄 Updating environment..."
           sudo sed -i "s/IMAGE_TAG=.*/IMAGE_TAG=${{ steps.version.outputs.IMAGE_TAG }}/" .env
           sudo sed -i "s/COMMIT_SHA=.*/COMMIT_SHA=${{ github.sha }}/" .env
           
-          # Ensure we have the latest docker-compose file
-          echo "📥 Ensuring latest docker-compose file..."
+          # Get docker-compose file if missing
           if [ ! -f docker-compose.prod.yml ]; then
-            echo "📋 Downloading docker-compose file..."
+            echo "📥 Downloading docker-compose file..."
             curl -o docker-compose.prod.yml \
               "https://raw.githubusercontent.com/${{ github.repository }}/main/docker-compose.prod.yml"
           fi
           
-          # Pull and deploy new version
-          echo "🐳 Pulling new Docker image..."
+          # Deploy
+          echo "🐳 Pulling new image..."
           sudo docker-compose -f docker-compose.prod.yml pull backend
           
           echo "🔄 Starting services..."
           sudo docker-compose -f docker-compose.prod.yml up -d
           
-          # Wait for health check with retries
-          echo "⏳ Waiting for application to be healthy..."
+          # Health check
+          echo "⏳ Waiting for health check..."
           for i in {1..12}; do
             if curl -f http://localhost:8000/health > /dev/null 2>&1; then
-              echo "✅ Application health check passed!"
+              echo "✅ Health check passed!"
               break
             fi
-            echo "Attempt $i/12: Application not ready yet..."
+            echo "Attempt $i/12: Waiting..."
             sleep 10
           done
           
-          # Final verification
+          # Verify
           if curl -f http://localhost:8000/health; then
             echo "🎉 Deployment successful!"
-            echo "📦 New version: ${{ steps.version.outputs.IMAGE_TAG }}"
-            echo "🌐 Application URL: https://brb.elvisquant.com"
-            
-            # Cleanup old images to save space
-            echo "🧹 Cleaning up old Docker images..."
+            echo "📦 Version: ${{ steps.version.outputs.IMAGE_TAG }}"
             sudo docker image prune -f
           else
-            echo "❌ Health check failed after deployment!"
-            echo "🔄 Attempting rollback..."
+            echo "❌ Health check failed!"
             sudo docker-compose -f docker-compose.prod.yml restart backend
             exit 1
           fi
 
-    - name: "🌐 Verify Public Access"
+    - name: "🌐 Verify Access"
       run: |
-        echo "🔍 Verifying public application access..."
+        echo "🔍 Checking application access..."
         if curl -f -s "https://brb.elvisquant.com/health" > /dev/null 2>&1; then
-          echo "✅ Application is publicly accessible at https://brb.elvisquant.com"
+          echo "✅ Application accessible at https://brb.elvisquant.com"
         else
-          echo "⚠️  Application might not be publicly accessible yet (check DNS propagation)"
+          echo "⚠️  Application not accessible yet (DNS might be propagating)"
         fi
 
-    - name: "📋 Deployment Complete"
+  deployment-complete:
+    runs-on: ubuntu-latest
+    needs: [check-readiness, deploy-application]
+    steps:
+    - name: "📋 Deployment Status"
       run: |
-        echo "🎉 APPLICATION DEPLOYMENT COMPLETE!"
-        echo "==================================="
-        echo "✅ New version deployed successfully"
-        echo "✅ Docker image built and pushed"
-        echo "✅ Services running on EC2 instance"
-        echo "✅ Health checks passing"
-        echo ""
+        echo "🎯 DEPLOYMENT PHASE COMPLETE"
+        echo "============================"
+        echo "✅ Readiness check: ${{ needs.check-readiness.result }}"
+        echo "✅ Application deployment: ${{ needs.deploy-application.result || 'skipped' }}"
         echo "🌐 Your application is live at: https://brb.elvisquant.com"
