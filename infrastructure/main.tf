@@ -155,16 +155,3 @@ resource "aws_iam_role_policy_attachment" "ssm_managed_instance" {
   role       = aws_iam_role.brb_app.name
   policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
 }
-
-# Route53 record already exists - skip creation
-# The record brb.elvisquant.com already points to your EC2 instance
-
-output "ec2_public_ip" {
-  description = "Public IP address of the EC2 instance"
-  value       = aws_instance.brb_app.public_ip
-}
-
-output "application_url" {
-  description = "URL where the application will be available"
-  value       = "https://brb.elvisquant.com"
-}

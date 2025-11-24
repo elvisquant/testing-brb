@@ -37,9 +37,6 @@ jobs:
         
         # Import existing DynamoDB table
         terraform import aws_dynamodb_table.tf_locks brb-app-tf-locks || echo "DynamoDB table already imported or doesn't exist"
-        
-        # Import existing Route53 record
-        terraform import aws_route53_record.brb_app Z0360440D2BL07B1V79H_brb.elvisquant.com_A || echo "Route53 record already imported or doesn't exist"
 
     - name: "📊 Plan Infrastructure"
       run: |
