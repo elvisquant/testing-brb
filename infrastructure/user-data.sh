@@ -3,9 +3,11 @@ set -e
 
 # --- UBUNTU SETUP ---
 export DEBIAN_FRONTEND=noninteractive
-# Update system package lists ONLY. DO NOT run "upgrade".
+# Update system package lists ONLY. This is fast and safe.
 echo "🔄 Updating system package lists..."
 sudo apt-get update -y
+
+# DO NOT RUN "apt-get upgrade -y" HERE. IT IS THE CAUSE OF THE TIMEOUT.
 
 # Install Docker using apt
 echo "🐳 Installing Docker..."
@@ -52,16 +54,14 @@ ACME_EMAIL=admin@elvisquant.com
 COMMIT_SHA=initial
 EOF
 
-# Create directory structure
-echo "📂 Creating directory structure..."
+# Create directory structure and files
+echo "📂 Creating directory structure and files..."
 sudo mkdir -p traefik
-
-# Create Traefik configuration
-echo "🌐 Configuring Traefik..."
+sudo touch traefik/acme.json
+sudo chmod 600 traefik/acme.json
 sudo cat > traefik/traefik.yml << 'EOF'
 api:
   dashboard: false
-
 entryPoints:
   web:
     address: ":80"
@@ -72,7 +72,6 @@ entryPoints:
           scheme: https
   websecure:
     address: ":443"
-
 certificatesResolvers:
   myresolver:
     acme:
@@ -80,17 +79,11 @@ certificatesResolvers:
       storage: /acme.json
       httpChallenge:
         entryPoint: web
-
 providers:
   docker:
     endpoint: "unix:///var/run/docker.sock"
     exposedByDefault: false
 EOF
-
-# Create SSL certificate storage
-echo "🔐 Setting up SSL certificate storage..."
-sudo touch traefik/acme.json
-sudo chmod 600 traefik/acme.json
 
 # Set ownership to the 'ubuntu' user
 echo "👤 Setting file permissions..."
@@ -109,8 +102,8 @@ echo "📄 Downloading Docker Compose file..."
 sudo curl -o docker-compose.prod.yml https://raw.githubusercontent.com/${github_repository}/main/docker-compose.prod.yml
 sudo chown ubuntu:ubuntu docker-compose.prod.yml
 
-# Wait for 60 seconds to allow the DNS record to propagate globally.
-echo "⏳ Waiting 60 seconds for DNS propagation before starting services..."
+# Wait for DNS to propagate
+echo "⏳ Waiting 60 seconds for DNS propagation..."
 sleep 60
 
 # Run docker-compose as the 'ubuntu' user
@@ -119,5 +112,3 @@ sudo -u ubuntu /usr/local/bin/docker-compose -f docker-compose.prod.yml pull
 sudo -u ubuntu /usr/local/bin/docker-compose -f docker-compose.prod.yml up -d
 
 echo "✅ EC2 instance setup complete!"
-echo "🌐 Your application will be available at: https://brb.elvisquant.com"
-echo "🔧 Connect via SSH using the 'ubuntu' user and your generated private key."
