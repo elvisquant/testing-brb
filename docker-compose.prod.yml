@@ -1,51 +1,85 @@
+# /opt/brb-app/docker-compose.prod.yml
+
 version: '3.8'
 
 services:
+  # 1. The Reverse Proxy (Traefik) - Handles HTTPS and routing
+  traefik:
+    image: "traefik:v2.9"
+    container_name: "traefik_proxy"
+    command:
+      - "--configFile=/etc/traefik/traefik.yml"
+    ports:
+      - "80:80"    # For the HTTP to HTTPS redirect
+      - "443:443"  # For all HTTPS traffic
+    volumes:
+      # Mount the static Traefik configuration
+      - ./traefik/traefik.yml:/etc/traefik/traefik.yml:ro
+      # Mount the file for storing SSL certificates
+      - ./traefik/acme.json:/acme.json
+      # Mount the Docker socket to allow Traefik to discover other containers
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - app-network
+    restart: always
+
+  # 2. The Application Backend (FastAPI)
   backend:
-    image: ${DOCKER_REGISTRY}/${BACKEND_IMAGE}:${IMAGE_TAG}
-    environment:
-      - DATABASE_URL=postgresql://${DB_USER}:${DB_PASSWORD}@db:5432/${DB_NAME}
-      - ENVIRONMENT=production
-      - SECRET_KEY=${SECRET_KEY}
-      - COMMIT_SHA=${COMMIT_SHA}
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+    # The image is specified by variables from the .env file
+    image: "${BACKEND_IMAGE}:${IMAGE_TAG}"
+    container_name: "brb_app_backend"
+    # Load all environment variables from the .env file created by user-data
+    env_file:
+      - .env
+    # This is crucial: the backend will not start until the 'db' service is healthy
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - app-network
+    restart: always
+    # --- Traefik Labels for Service Discovery ---
     labels:
+      # Enable Traefik for this service
       - "traefik.enable=true"
-      - "traefik.http.routers.backend.rule=Host(`brb.elvisquant.com`)"
+      # Create a router named 'backend' that listens for requests to our domain
+      - "traefik.http.routers.backend.rule=Host(`${DOMAIN}`)"
+      # Tell the router to only listen on the secure (HTTPS) entrypoint
       - "traefik.http.routers.backend.entrypoints=websecure"
+      # Use our Let's Encrypt certificate resolver
       - "traefik.http.routers.backend.tls.certresolver=myresolver"
+      # Tell Traefik that our FastAPI app listens on port 8000 inside the container
       - "traefik.http.services.backend.loadbalancer.server.port=8000"
 
+  # 3. The PostgreSQL Database
   db:
-    image: postgres:15-alpine
+    image: "postgres:15-alpine"
+    container_name: "brb_app_db"
+    # Mount a persistent volume to store the database data
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    # Configure the database using variables from the .env file
+    # The official Postgres image looks for these specific variable names
     environment:
       - POSTGRES_DB=${DB_NAME}
       - POSTGRES_USER=${DB_USER}
       - POSTGRES_PASSWORD=${DB_PASSWORD}
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    restart: unless-stopped
+    networks:
+      - app-network
+    restart: always
+    # Healthcheck to ensure the backend only starts when the database is ready
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
-  traefik:
-    image: traefik:v2.10
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-      - ./traefik/traefik.yml:/etc/traefik/traefik.yml
-      - ./traefik/acme.json:/acme.json
-    restart: unless-stopped
+# Define the shared network for all services
+networks:
+  app-network:
+    driver: bridge
 
+# Define the persistent volume for the database
 volumes:
   postgres_data:
+    driver: local

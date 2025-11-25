@@ -1,19 +1,21 @@
 #!/bin/bash
 set -e
 
-# Update system
-echo "🔄 Updating system packages..."
-sudo yum update -y
+# --- UBUNTU SETUP ---
+export DEBIAN_FRONTEND=noninteractive
+# Update system package lists
+echo "🔄 Updating system package lists..."
+sudo apt-get update -y
 
-# --- THE FIX IS HERE ---
-# Install Docker using the correct command for Amazon Linux 2023
+# Install Docker using apt
 echo "🐳 Installing Docker..."
-sudo yum install -y docker
-# --- END OF FIX ---
+sudo apt-get install -y docker.io
 
+# Standard Docker setup
 sudo systemctl enable docker
 sudo systemctl start docker
-sudo usermod -a -G docker ec2-user
+sudo usermod -a -G docker ubuntu
+# --- END OF UBUNTU SETUP ---
 
 # Install Docker Compose
 echo "📦 Installing Docker Compose..."
@@ -90,9 +92,9 @@ echo "🔐 Setting up SSL certificate storage..."
 sudo touch traefik/acme.json
 sudo chmod 600 traefik/acme.json
 
-# Set proper ownership
+# Set ownership to the 'ubuntu' user
 echo "👤 Setting file permissions..."
-sudo chown -R ec2-user:ec2-user /opt/brb-app
+sudo chown -R ubuntu:ubuntu /opt/brb-app
 
 # Wait for cloud-init to complete
 echo "⏳ Waiting for cloud-init to complete..."
@@ -104,19 +106,18 @@ cd /opt/brb-app
 
 # Download the Docker Compose file
 echo "📄 Downloading Docker Compose file..."
-# IMPORTANT: Replace YOUR_USERNAME/YOUR_REPO with your actual GitHub username and repository
-sudo curl -o docker-compose.prod.yml https://raw.githubusercontent.com/YOUR_USERNAME/YOUR_REPO/main/docker-compose.prod.yml
-sudo chown ec2-user:ec2-user docker-compose.prod.yml
+sudo curl -o docker-compose.prod.yml https://raw.githubusercontent.com/${github_repository}/main/docker-compose.prod.yml
+sudo chown ubuntu:ubuntu docker-compose.prod.yml
 
 # Wait for 60 seconds to allow the DNS record to propagate globally.
 echo "⏳ Waiting 60 seconds for DNS propagation before starting services..."
 sleep 60
 
-# Now, pull the image and start the services as the ec2-user
+# Run docker-compose as the 'ubuntu' user
 echo "🐳 Pulling initial Docker image and starting services..."
-sudo -u ec2-user /usr/local/bin/docker-compose -f docker-compose.prod.yml pull
-sudo -u ec2-user /usr/local/bin/docker-compose -f docker-compose.prod.yml up -d
+sudo -u ubuntu /usr/local/bin/docker-compose -f docker-compose.prod.yml pull
+sudo -u ubuntu /usr/local/bin/docker-compose -f docker-compose.prod.yml up -d
 
 echo "✅ EC2 instance setup complete!"
 echo "🌐 Your application will be available at: https://brb.elvisquant.com"
-echo "🔧 Use AWS Systems Manager Session Manager to access the instance"
+echo "🔧 Connect via SSH using the 'ubuntu' user and your generated private key."

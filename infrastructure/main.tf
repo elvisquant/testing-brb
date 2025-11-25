@@ -24,7 +24,7 @@ data "aws_subnets" "default" {
   }
 }
 
-# Security Group
+# Security Group - Port 22 must be open for SSH
 resource "aws_security_group" "brb_app_sg" {
   name        = "brb-app-sg"
   description = "Security group for BRB application"
@@ -68,49 +68,54 @@ resource "aws_security_group" "brb_app_sg" {
   }
 }
 
-# Get the latest Amazon Linux 2023 AMI
-data "aws_ami" "amazon_linux_2023" {
+# --- FREE TIER STEP 1: Select a Free Tier eligible AMI ---
+# Get the latest Ubuntu 22.04 LTS AMI, which is Free Tier eligible.
+data "aws_ami" "ubuntu" {
   most_recent = true
-  owners      = ["amazon"]
+  owners      = ["099720109477"] # Canonical's official AWS account ID
 
   filter {
     name   = "name"
-    values = ["al2023-ami-2023.*-x86_64"]
+    values = ["ubuntu/images/hvm-ssd/ubuntu-jammy-22.04-amd64-server-*"]
   }
 
   filter {
     name   = "virtualization-type"
     values = ["hvm"]
   }
+}
 
-  filter {
-    name   = "architecture"
-    values = ["x86_64"]
-  }
+# Create an EC2 key pair by uploading the public key from the pipeline
+resource "aws_key_pair" "deployer_key" {
+  key_name   = "brb-app-key"
+  public_key = var.ssh_public_key
 }
 
 # EC2 Instance
 resource "aws_instance" "brb_app" {
-  ami                    = data.aws_ami.amazon_linux_2023.id
-  instance_type          = "t2.micro"
+  ami = data.aws_ami.ubuntu.id
+  
+  # --- FREE TIER STEP 2: Select the Free Tier instance type ---
+  instance_type = "t2.micro"
+
   vpc_security_group_ids = [aws_security_group.brb_app_sg.id]
   subnet_id              = data.aws_subnets.default.ids[0]
   
-  # Use IAM Instance Profile for SSM access
-  iam_instance_profile = aws_iam_instance_profile.brb_app.name
-
+  # Associate the key pair for SSH access
+  key_name = aws_key_pair.deployer_key.key_name
+  
   root_block_device {
     volume_type = "gp2"
-    volume_size = 8
+    volume_size = 8 # The free tier includes up to 30GB of EBS storage
     encrypted   = true
   }
 
   monitoring = false
 
   user_data_base64 = base64encode(templatefile("${path.module}/user-data.sh", {
-    domain          = "brb.elvisquant.com"
+    # We pass the repository so user-data can download the docker-compose file
+    github_repository = "elvisquant/brb-app" # <-- IMPORTANT: I have put your username/repo here. Confirm it is correct.
     docker_username = var.docker_username
-    docker_password = var.docker_password
     db_password     = var.db_password
     secret_key      = var.secret_key
   }))
@@ -120,39 +125,3 @@ resource "aws_instance" "brb_app" {
     Environment = "production"
   }
 }
-
-# IAM Role for EC2 instance to use SSM Session Manager
-resource "aws_iam_role" "brb_app" {
-  name = "brb-app-ec2-role"
-
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Action = "sts:AssumeRole"
-        Effect = "Allow"
-        Principal = {
-          Service = "ec2.amazonaws.com"
-        }
-      }
-    ]
-  })
-
-  tags = {
-    Name        = "brb-app-ec2-role"
-    Environment = "production"
-  }
-}
-
-# IAM Instance Profile
-resource "aws_iam_instance_profile" "brb_app" {
-  name = "brb-app-ec2-profile"
-  role = aws_iam_role.brb_app.name
-}
-
-# IAM Policy for SSM Session Manager
-resource "aws_iam_role_policy_attachment" "ssm_managed_instance" {
-  role       = aws_iam_role.brb_app.name
-  policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
-}
-
