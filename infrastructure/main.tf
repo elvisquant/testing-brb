@@ -84,12 +84,10 @@ data "aws_ami" "ubuntu" {
   }
 }
 
-# --- THIS IS THE CHANGE ---
 # Find the existing key pair named "devops" in your AWS account.
 data "aws_key_pair" "deployer_key" {
   key_name = "devops" 
 }
-# --- END OF CHANGE ---
 
 # EC2 Instance
 resource "aws_instance" "brb_app" {
@@ -112,12 +110,15 @@ resource "aws_instance" "brb_app" {
 
   monitoring = false
 
-  user_data_base_64 = base64encode(templatefile("${path.module}/user-data.sh", {
+  # --- THIS LINE IS THE FIX ---
+  # Corrected the typo from user_data_base_na to user_data_base64
+  user_data_base64 = base64encode(templatefile("${path.module}/user-data.sh", {
     github_repository = "elvisquant/brb-app" # Confirm this is your correct username/repo
     docker_username = var.docker_username
     db_password     = var.db_password
     secret_key      = var.secret_key
   }))
+  # --- END OF FIX ---
 
   tags = {
     Name        = "brb-app-server"
