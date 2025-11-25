@@ -72,49 +72,32 @@ jobs:
         INSTANCE_IP=$(aws ec2 describe-instances --filters "Name=tag:Name,Values=brb-app-server" --query "Reservations[0].Instances[0].PublicIpAddress" --output text)
         echo "Deploying to Instance IP: $INSTANCE_IP"
 
-        # Prepare the private key, ensuring correct formatting
         echo "${{ secrets.EC2_SSH_PRIVATE_KEY }}" > private_key.pem
         awk 'NF {sub(/\r/, ""); printf "%s\n",$0;}' private_key.pem > private_key_formatted.pem && mv private_key_formatted.pem private_key.pem
         chmod 600 private_key.pem
 
-        # Use scp to copy the docker-compose file from your repo to the server's temporary directory
-        echo "Copying docker-compose.prod.yml to the server..."
         scp -i private_key.pem -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null docker-compose.prod.yml ubuntu@$INSTANCE_IP:/tmp/docker-compose.prod.yml
         
-        # Use SSH to run the full setup and deployment script on the EC2 instance
         ssh -i private_key.pem -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ubuntu@$INSTANCE_IP << 'EOF'
-          # This entire block of commands runs on the remote EC2 server
-          
           echo "--- Starting server configuration ---"
-          
-          # Create application directories
           sudo mkdir -p /opt/brb-app/traefik
-          
-          # Move the compose file from /tmp to its final destination
           sudo mv /tmp/docker-compose.prod.yml /opt/brb-app/docker-compose.prod.yml
 
-          # Create the .env file using secrets passed from the GitHub workflow
           echo "Creating .env file..."
           sudo bash -c 'cat > /opt/brb-app/.env' << ENV
-# Database Configuration
 DB_NAME=brbdb
 DB_USER=brbuser
 DB_PASSWORD=${{ secrets.DB_PASSWORD }}
-# Docker Configuration
 DOCKER_REGISTRY=docker.io
 BACKEND_IMAGE=${{ secrets.DOCKER_USERNAME }}/brb-app-backend
 IMAGE_TAG=${{ github.sha }}
-# Application Configuration
 SECRET_KEY=${{ secrets.SECRET_KEY }}
 ENVIRONMENT=production
 DOMAIN=brb.elvisquant.com
-# SSL Configuration
 ACME_EMAIL=admin@elvisquant.com
-# Version Information
 COMMIT_SHA=${{ github.sha }}
 ENV
 
-          # Create Traefik configuration files
           echo "Creating Traefik configuration..."
           sudo touch /opt/brb-app/traefik/acme.json
           sudo chmod 600 /opt/brb-app/traefik/acme.json
@@ -144,14 +127,11 @@ providers:
     exposedByDefault: false
 TRAEFIK
           
-          # Set correct ownership for the entire application directory
           sudo chown -R ubuntu:ubuntu /opt/brb-app
 
-          # Wait for DNS to propagate before starting Traefik for the first time
           echo "Waiting 60 seconds for DNS to propagate..."
           sleep 60
           
-          # Pull the latest images and start the services
           echo "Pulling latest images and starting services..."
           cd /opt/brb-app
           sudo -u ubuntu /usr/local/bin/docker-compose pull
