@@ -11,24 +11,18 @@ jobs:
     - name: "📥 Checkout code"
       uses: actions/checkout@v4
 
-    - name: "🔐 Generate All Secrets"
+    - name: "🔐 Generate Application Secrets"
       run: |
-        echo "🛡️ Generating all secrets..."
+        echo "🛡️ Generating application secrets (DB_PASSWORD, SECRET_KEY)..."
         
-        # Always generate secrets (idempotent)
+        # Always generate these application secrets
         DB_PASSWORD=$(openssl rand -base64 24 | tr -dc 'a-zA-Z0-9' | head -c 24)
         echo "DB_PASSWORD=$DB_PASSWORD" >> secrets.txt
         
         SECRET_KEY=$(openssl rand -base64 48)
         echo "SECRET_KEY=$SECRET_KEY" >> secrets.txt
         
-        ssh-keygen -t rsa -b 4096 -C "brb-app" -f brb-key -N "" -q
-        EC2_SSH_PRIVATE_KEY=$(cat brb-key | base64 -w 0)
-        EC2_SSH_PUBLIC_KEY=$(cat brb-key.pub)
-        echo "EC2_SSH_PRIVATE_KEY=$EC2_SSH_PRIVATE_KEY" >> secrets.txt
-        echo "EC2_SSH_PUBLIC_KEY=$EC2_SSH_PUBLIC_KEY" >> secrets.txt
-        
-        echo "✅ All secrets generated"
+        echo "✅ Application secrets generated."
 
     - name: "📤 Save Secrets to GitHub"
       uses: actions/github-script@v7
@@ -57,7 +51,7 @@ jobs:
           }
 
     - name: "🧹 Cleanup"
-      run: rm -f secrets.txt brb-key brb-key.pub
+      run: rm -f secrets.txt
 
     - name: "📋 Setup Complete"
-      run: echo "✅ Initial setup complete - secrets are ready"
+      run: echo "✅ Initial setup complete - application secrets are ready"
