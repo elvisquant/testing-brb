@@ -3,7 +3,7 @@ set -e
 
 # --- UBUNTU SETUP ---
 export DEBIAN_FRONTEND=noninteractive
-# Update system package lists
+# Update system package lists ONLY. DO NOT run "upgrade".
 echo "🔄 Updating system package lists..."
 sudo apt-get update -y
 
