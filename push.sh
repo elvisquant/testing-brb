@@ -17,6 +17,6 @@ echo "Committing Changes..."
 git commit -m "$COMMIT_MESSAGE"
 
 echo "Pushing to origin/$BRANCH..."
-git push -u origin "$BRANCH"
+git push -u origin "$BRANCH" --force
 
 echo "Done!"
