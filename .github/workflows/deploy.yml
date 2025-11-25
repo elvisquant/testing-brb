@@ -40,23 +40,40 @@ jobs:
         build-args: |
           COMMIT_SHA=${{ github.sha }}
 
-    # --- THIS IS THE CHANGE ---
+    # --- THIS IS THE FIX ---
+    # Replaced the failing `wait` command with a robust bash loop.
     - name: "⏳ Wait for EC2 Instance to be Ready"
       run: |
         INSTANCE_ID=$(aws ec2 describe-instances --filters "Name=tag:Name,Values=brb-app-server" --query "Reservations[0].Instances[0].InstanceId" --output text)
         if [ -z "$INSTANCE_ID" ] || [ "$INSTANCE_ID" == "None" ]; then
-          echo "❌ Could not find a running instance with tag Name=brb-app-server."
+          echo "❌ Could not find a running instance with tag Name=b-app-server."
           exit 1
         fi
+        
         echo "Found Instance ID: $INSTANCE_ID. Waiting up to 20 minutes for it to pass status checks..."
-        # Use a longer, more patient wait command
-        aws ec2 wait instance-status-ok --instance-ids $INSTANCE_ID --waiter-delay 30 --waiter-max-attempts 40
-        echo "✅ Instance is ready."
-    # --- END OF CHANGE ---
+        
+        MAX_ATTEMPTS=40
+        DELAY=30
+        for ((i=1; i<=MAX_ATTEMPTS; i++)); do
+          # The `wait` command will return a non-zero exit code on timeout, which is handled by the loop.
+          if aws ec2 wait instance-status-ok --instance-ids $INSTANCE_ID; then
+            echo "✅ Instance is ready."
+            exit 0
+          fi
+          
+          if [ "$i" -lt "$MAX_ATTEMPTS" ]; then
+            echo "Attempt $i/$MAX_ATTEMPTS: Status check not OK yet. Waiting $DELAY seconds..."
+            sleep $DELAY
+          else
+            echo "❌ All $MAX_ATTEMPTS attempts failed. The instance did not become healthy in time."
+            exit 1
+          fi
+        done
+    # --- END OF FIX ---
 
     - name: "🚀 Deploy to EC2 using SSH"
       run: |
-        INSTANCE_IP=$(aws ec2 describe-instances --filters "Name=tag:Name,Values=brb-app-server" --query "Reservations[0].Instances[0].PublicIpAddress" --output text)
+        INSTANCE_IP=$(aws ec2 describe-instances --filters "Name=tag:Name,Values=b-app-server" --query "Reservations[0].Instances[0].PublicIpAddress" --output text)
         echo "Deploying to Instance IP: $INSTANCE_IP"
 
         echo "${{ secrets.EC2_SSH_PRIVATE_KEY }}" > private_key.pem
@@ -78,8 +95,8 @@ jobs:
       run: |
         echo "🔍 Checking if app is accessible..."
         sleep 30
-        if curl --fail --silent --show-error "https://brb.elvisquant.com/health"; then
-          echo "✅ App is live at https://brb.elvisquant.com"
+        if curl --fail --silent --show-error "https://b.elvisquant.com/health"; then
+          echo "✅ App is live at https://b.elvisquant.com"
         else
           echo "⚠️ App failed to become healthy. Please check EC2 instance logs."
           exit 1
