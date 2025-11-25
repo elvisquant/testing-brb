@@ -64,9 +64,9 @@ jobs:
           fi
         done
 
-    # --- THIS IS THE FIX ---
-    # Step 1: Create the .env file locally on the runner. This is safe and simple.
-    - name: "📦 Prepare Environment File"
+    # --- THE FIX: SPLIT DEPLOYMENT INTO SMALLER, SIMPLER STEPS ---
+    
+    - name: "📝 Prepare Environment File"
       run: |
         echo "Creating .env file for deployment..."
         echo "DB_NAME=brbdb" > .env
@@ -82,33 +82,33 @@ jobs:
         echo "COMMIT_SHA=${{ github.sha }}" >> .env
         echo "✅ .env file created."
 
-    # Step 2: Copy the files to the server and run the commands.
-    - name: "🚀 Deploy & Configure Server via SSH"
+    - name: "🔑 Prepare SSH Key and Get IP"
       run: |
-        INSTANCE_IP=$(aws ec2 describe-instances --filters "Name=tag:Name,Values=brb-app-server" --query "Reservations[0].Instances[0].PublicIpAddress" --output text)
-        echo "Deploying to Instance IP: $INSTANCE_IP"
-
+        echo "Preparing SSH key..."
         echo "${{ secrets.EC2_SSH_PRIVATE_KEY }}" > private_key.pem
         awk 'NF {sub(/\r/, ""); printf "%s\n",$0;}' private_key.pem > private_key_formatted.pem && mv private_key_formatted.pem private_key.pem
         chmod 600 private_key.pem
-
-        # Copy all necessary files to the server's temporary directory
-        echo "Copying configuration files to the server..."
-        scp -i private_key.pem -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null .env ubuntu@$INSTANCE_IP:/tmp/.env
-        scp -i private_key.pem -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null docker-compose.prod.yml ubuntu@$INSTANCE_IP:/tmp/docker-compose.prod.yml
         
-        # Connect via SSH and run a much simpler script
-        ssh -i private_key.pem -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ubuntu@$INSTANCE_IP << 'EOF'
+        echo "Fetching EC2 Instance IP..."
+        INSTANCE_IP=$(aws ec2 describe-instances --filters "Name=tag:Name,Values=brb-app-server" --query "Reservations[0].Instances[0].PublicIpAddress" --output text)
+        echo "INSTANCE_IP=${INSTANCE_IP}" >> $GITHUB_ENV
+        echo "Instance IP is ${INSTANCE_IP}"
+
+    - name: "📂 Copy Files to Server"
+      run: |
+        echo "Copying configuration files to the server..."
+        scp -i private_key.pem -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null .env ubuntu@${{ env.INSTANCE_IP }}:/tmp/.env
+        scp -i private_key.pem -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null docker-compose.prod.yml ubuntu@${{ env.INSTANCE_IP }}:/tmp/docker-compose.prod.yml
+    
+    - name: "🚀 Execute Deployment on Server"
+      run: |
+        echo "Executing remote commands on the server..."
+        ssh -i private_key.pem -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ubuntu@${{ env.INSTANCE_IP }} << 'EOF'
           echo "--- Starting final server configuration ---"
-          
-          # Create directories
           sudo mkdir -p /opt/brb-app/traefik
-          
-          # Move files from /tmp to their final destination
           sudo mv /tmp/.env /opt/brb-app/.env
           sudo mv /tmp/docker-compose.prod.yml /opt/brb-app/docker-compose.prod.yml
 
-          # Create Traefik files (these have no variables, so 'cat' is safe)
           echo "Creating Traefik configuration..."
           sudo touch /opt/brb-app/traefik/acme.json
           sudo chmod 600 /opt/brb-app/traefik/acme.json
@@ -138,9 +138,7 @@ providers:
     exposedByDefault: false
 TRAEFIK
           
-          # Set correct ownership for the entire application directory
           sudo chown -R ubuntu:ubuntu /opt/brb-app
-
           echo "Waiting 60 seconds for DNS to propagate..."
           sleep 60
           
@@ -148,7 +146,6 @@ TRAEFIK
           cd /opt/brb-app
           sudo -u ubuntu /usr/local/bin/docker-compose pull
           sudo -u ubuntu /usr/local/bin/docker-compose up -d --remove-orphans
-          
           echo "--- Deployment script on EC2 instance finished ---"
         EOF
     # --- END OF FIX ---
