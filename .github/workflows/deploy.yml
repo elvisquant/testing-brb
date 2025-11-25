@@ -47,9 +47,7 @@ jobs:
           echo "❌ Could not find a running instance with tag Name=brb-app-server."
           exit 1
         fi
-        
         echo "Found Instance ID: $INSTANCE_ID. Waiting up to 20 minutes for it to pass status checks..."
-        
         MAX_ATTEMPTS=40
         DELAY=30
         for ((i=1; i<=MAX_ATTEMPTS; i++)); do
@@ -57,7 +55,6 @@ jobs:
             echo "✅ Instance is ready."
             exit 0
           fi
-          
           if [ "$i" -lt "$MAX_ATTEMPTS" ]; then
             echo "Attempt $i/$MAX_ATTEMPTS: Status check not OK yet. Waiting $DELAY seconds..."
             sleep $DELAY
@@ -67,6 +64,25 @@ jobs:
           fi
         done
 
+    # --- THIS IS THE FIX ---
+    # Step 1: Create the .env file locally on the runner. This is safe and simple.
+    - name: "📦 Prepare Environment File"
+      run: |
+        echo "Creating .env file for deployment..."
+        echo "DB_NAME=brbdb" > .env
+        echo "DB_USER=brbuser" >> .env
+        echo "DB_PASSWORD=${{ secrets.DB_PASSWORD }}" >> .env
+        echo "DOCKER_REGISTRY=docker.io" >> .env
+        echo "BACKEND_IMAGE=${{ secrets.DOCKER_USERNAME }}/brb-app-backend" >> .env
+        echo "IMAGE_TAG=${{ github.sha }}" >> .env
+        echo "SECRET_KEY=${{ secrets.SECRET_KEY }}" >> .env
+        echo "ENVIRONMENT=production" >> .env
+        echo "DOMAIN=brb.elvisquant.com" >> .env
+        echo "ACME_EMAIL=admin@elvisquant.com" >> .env
+        echo "COMMIT_SHA=${{ github.sha }}" >> .env
+        echo "✅ .env file created."
+
+    # Step 2: Copy the files to the server and run the commands.
     - name: "🚀 Deploy & Configure Server via SSH"
       run: |
         INSTANCE_IP=$(aws ec2 describe-instances --filters "Name=tag:Name,Values=brb-app-server" --query "Reservations[0].Instances[0].PublicIpAddress" --output text)
@@ -76,28 +92,23 @@ jobs:
         awk 'NF {sub(/\r/, ""); printf "%s\n",$0;}' private_key.pem > private_key_formatted.pem && mv private_key_formatted.pem private_key.pem
         chmod 600 private_key.pem
 
+        # Copy all necessary files to the server's temporary directory
+        echo "Copying configuration files to the server..."
+        scp -i private_key.pem -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null .env ubuntu@$INSTANCE_IP:/tmp/.env
         scp -i private_key.pem -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null docker-compose.prod.yml ubuntu@$INSTANCE_IP:/tmp/docker-compose.prod.yml
         
+        # Connect via SSH and run a much simpler script
         ssh -i private_key.pem -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ubuntu@$INSTANCE_IP << 'EOF'
-          echo "--- Starting server configuration ---"
+          echo "--- Starting final server configuration ---"
+          
+          # Create directories
           sudo mkdir -p /opt/brb-app/traefik
+          
+          # Move files from /tmp to their final destination
+          sudo mv /tmp/.env /opt/brb-app/.env
           sudo mv /tmp/docker-compose.prod.yml /opt/brb-app/docker-compose.prod.yml
 
-          echo "Creating .env file..."
-          sudo bash -c 'cat > /opt/brb-app/.env' << ENV
-DB_NAME=brbdb
-DB_USER=brbuser
-DB_PASSWORD=${{ secrets.DB_PASSWORD }}
-DOCKER_REGISTRY=docker.io
-BACKEND_IMAGE=${{ secrets.DOCKER_USERNAME }}/brb-app-backend
-IMAGE_TAG=${{ github.sha }}
-SECRET_KEY=${{ secrets.SECRET_KEY }}
-ENVIRONMENT=production
-DOMAIN=brb.elvisquant.com
-ACME_EMAIL=admin@elvisquant.com
-COMMIT_SHA=${{ github.sha }}
-ENV
-
+          # Create Traefik files (these have no variables, so 'cat' is safe)
           echo "Creating Traefik configuration..."
           sudo touch /opt/brb-app/traefik/acme.json
           sudo chmod 600 /opt/brb-app/traefik/acme.json
@@ -127,6 +138,7 @@ providers:
     exposedByDefault: false
 TRAEFIK
           
+          # Set correct ownership for the entire application directory
           sudo chown -R ubuntu:ubuntu /opt/brb-app
 
           echo "Waiting 60 seconds for DNS to propagate..."
@@ -139,6 +151,7 @@ TRAEFIK
           
           echo "--- Deployment script on EC2 instance finished ---"
         EOF
+    # --- END OF FIX ---
 
     - name: "🌐 Verify Deployment"
       run: |
