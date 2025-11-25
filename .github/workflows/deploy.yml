@@ -40,51 +40,49 @@ jobs:
         build-args: |
           COMMIT_SHA=${{ github.sha }}
 
-    # --- THE FIX IS HERE ---
     - name: "⏳ Wait for EC2 Instance to be Ready"
       run: |
-        INSTANCE_ID=$(aws ec2 describe-instances \
-          --filters "Name=tag:Name,Values=brb-app-server" \
-          --query "Reservations[0].Instances[0].InstanceId" \
-          --output text)
-        
+        INSTANCE_ID=$(aws ec2 describe-instances --filters "Name=tag:Name,Values=brb-app-server" --query "Reservations[0].Instances[0].InstanceId" --output text)
         if [ -z "$INSTANCE_ID" ] || [ "$INSTANCE_ID" == "None" ]; then
           echo "❌ Could not find a running instance with tag Name=brb-app-server."
           exit 1
         fi
-        
         echo "Found Instance ID: $INSTANCE_ID. Waiting for it to pass status checks..."
         aws ec2 wait instance-status-ok --instance-ids $INSTANCE_ID
         echo "✅ Instance is ready."
-    # --- END OF FIX ---
 
-    - name: "🚀 Deploy to EC2 using SSM"
+    - name: "🚀 Deploy to EC2 using SSH"
       run: |
-        INSTANCE_ID=$(aws ec2 describe-instances \
-          --filters "Name=tag:Name,Values=brb-app-server" \
-          --query "Reservations[0].Instances[0].InstanceId" \
-          --output text)
+        INSTANCE_IP=$(aws ec2 describe-instances --filters "Name=tag:Name,Values=brb-app-server" --query "Reservations[0].Instances[0].PublicIpAddress" --output text)
+        echo "Deploying to Instance IP: $INSTANCE_IP"
+
+        # --- THIS IS THE FIX ---
+        # 1. Echo the secret into the file.
+        # 2. Use `awk` to ensure the file has exactly one newline at the end, fixing any formatting issues.
+        echo "${{ secrets.EC2_SSH_PRIVATE_KEY }}" > private_key.pem
+        awk 'NF {sub(/\r/, ""); printf "%s\n",$0;}' private_key.pem > private_key_formatted.pem && mv private_key_formatted.pem private_key.pem
+        # --- END OF FIX ---
         
-        echo "Deploying to Instance ID: $INSTANCE_ID"
-        
-        # Send command via SSM to deploy the app
-        aws ssm send-command \
-          --instance-ids $INSTANCE_ID \
-          --document-name "AWS-RunShellScript" \
-          --parameters '{
-            "commands": [
-              "cd /opt/brb-app",
-              "sudo sed -i \"s|BACKEND_IMAGE=.*|BACKEND_IMAGE=${{ secrets.DOCKER_USERNAME }}/brb-app-backend|\" .env",
-              "sudo sed -i \"s/IMAGE_TAG=.*/IMAGE_TAG=${{ github.sha }}/\" .env",
-              "sudo sed -i \"s/COMMIT_SHA=.*/COMMIT_SHA=${{ github.sha }}/\" .env",
-              "sudo -u ubuntu /usr/local/bin/docker-compose -f docker-compose.prod.yml pull backend",
-              "sudo -u ubuntu /usr/local/bin/docker-compose -f docker-compose.prod.yml up -d --remove-orphans",
-              "sleep 15",
-              "sudo -u ubuntu /usr/local/bin/docker-compose -f docker-compose.prod.yml ps",
-              "curl -f http://localhost:8000/health && echo \"✅ Health check successful!\" || (echo \"❌ Health check failed\" && exit 1)"
-            ]
-          }' \
-          --output text
+        chmod 600 private_key.pem
+
+        ssh -i private_key.pem -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ubuntu@$INSTANCE_IP << 'EOF'
+          echo "--- Starting deployment on EC2 instance ---"
+          cd /opt/brb-app
+
+          echo "Updating .env file with new image tag..."
+          # Note: We use a different delimiter for sed because secrets.SECRET_KEY can contain '/'
+          sudo sed -i "s|SECRET_KEY=.*|SECRET_KEY=${{ secrets.SECRET_KEY }}|" .env
+          sudo sed -i "s/IMAGE_TAG=.*/IMAGE_TAG=${{ github.sha }}/" .env
+          sudo sed -i "s/COMMIT_SHA=.*/COMMIT_SHA=${{ github.sha }}/" .env
+
+          echo "Pulling new backend image from Docker Hub..."
+          sudo -u ubuntu /usr/local/bin/docker-compose -f docker-compose.prod.yml pull backend
+
+          echo "Restarting services with the new image..."
+          sudo -u ubuntu /usr/local/bin/docker-compose -f docker-compose.prod.yml up -d --remove-orphans
+
+          echo "--- Deployment script on EC2 instance finished ---"
+        EOF
 
     - name: "🌐 Verify Deployment"
       run: |

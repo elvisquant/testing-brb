@@ -1,15 +1,13 @@
-name: "3. 🚀 Deploy App"
+name: "X. 💣 Destroy Infrastructure"
 
+# This workflow can only be triggered manually from the GitHub Actions tab.
+# This is a safety measure to prevent accidental deletion.
 on:
-  workflow_run:
-    workflows: ["2. 🏗️ Infrastructure"]
-    types: [completed]
-    branches: [main]
+  workflow_dispatch:
 
 jobs:
-  deploy:
+  destroy:
     runs-on: ubuntu-latest
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     
     steps:
     - name: "📥 Checkout code"
@@ -22,81 +20,20 @@ jobs:
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         aws-region: us-east-1
 
-    - name: "🐳 Login to Docker"
-      uses: docker/login-action@v3
-      with:
-        username: ${{ secrets.DOCKER_USERNAME }}
-        password: ${{ secrets.DOCKER_PASSWORD }}
+    - name: "🏗️ Setup Terraform"
+      uses: hashicorp/setup-terraform@v3
 
-    - name: "🏗️ Build & Push Docker"
-      uses: docker/build-push-action@v5
-      with:
-        context: .
-        file: ./Dockerfile
-        push: true
-        tags: |
-          ${{ secrets.DOCKER_USERNAME }}/brb-app-backend:latest
-          ${{ secrets.DOCKER_USERNAME }}/brb-app-backend:${{ github.sha }}
-        build-args: |
-          COMMIT_SHA=${{ github.sha }}
+    - name: "✅ Init Terraform"
+      # Initializes Terraform in the correct directory to read your state file from S3
+      run: cd infrastructure && terraform init -input=false
 
-    - name: "⏳ Wait for EC2 Instance to be Ready"
+    - name: "💣 Destroy Infrastructure"
+      # Runs the destroy command, automatically approving the action.
+      # It passes all the necessary variables to ensure it can correctly interpret the state file.
       run: |
-        INSTANCE_ID=$(aws ec2 describe-instances --filters "Name=tag:Name,Values=brb-app-server" --query "Reservations[0].Instances[0].InstanceId" --output text)
-        if [ -z "$INSTANCE_ID" ] || [ "$INSTANCE_ID" == "None" ]; then
-          echo "❌ Could not find a running instance with tag Name=brb-app-server."
-          exit 1
-        fi
-        echo "Found Instance ID: $INSTANCE_ID. Waiting for it to pass status checks..."
-        aws ec2 wait instance-status-ok --instance-ids $INSTANCE_ID
-        echo "✅ Instance is ready."
-
-    # --- THIS IS THE FIX ---
-    # The SSM deployment step has been completely replaced with an SSH step.
-    - name: "🚀 Deploy to EC2 using SSH"
-      run: |
-        # Get the instance's public IP address
-        INSTANCE_IP=$(aws ec2 describe-instances \
-          --filters "Name=tag:Name,Values=brb-app-server" \
-          --query "Reservations[0].Instances[0].PublicIpAddress" \
-          --output text)
-        
-        echo "Deploying to Instance IP: $INSTANCE_IP"
-
-        # Save the private key from GitHub Secrets to a temporary file
-        echo "${{ secrets.EC2_SSH_PRIVATE_KEY }}" > private_key.pem
-        chmod 600 private_key.pem
-
-        # Use SSH to connect and run the deployment commands on the EC2 instance
-        ssh -i private_key.pem -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ubuntu@$INSTANCE_IP << 'EOF'
-          # This entire block of commands is now running on your EC2 server
-          echo "--- Starting deployment on EC2 instance ---"
-          cd /opt/brb-app
-
-          echo "Updating .env file with new image tag..."
-          sudo sed -i "s/IMAGE_TAG=.*/IMAGE_TAG=${{ github.sha }}/" .env
-          sudo sed -i "s/COMMIT_SHA=.*/COMMIT_SHA=${{ github.sha }}/" .env
-
-          echo "Pulling new backend image from Docker Hub..."
-          sudo -u ubuntu /usr/local/bin/docker-compose -f docker-compose.prod.yml pull backend
-
-          echo "Restarting services with the new image..."
-          sudo -u ubuntu /usr/local/bin/docker-compose -f docker-compose.prod.yml up -d --remove-orphans
-
-          echo "--- Deployment script on EC2 instance finished ---"
-        EOF
-    # --- END OF FIX ---
-
-    - name: "🌐 Verify Deployment"
-      run: |
-        echo "🔍 Checking if app is accessible..."
-        sleep 30
-        if curl --fail --silent --show-error "https://brb.elvisquant.com/health"; then
-          echo "✅ App is live at https://brb.elvisquant.com"
-        else
-          echo "⚠️ App failed to become healthy. Please check EC2 instance logs."
-          exit 1
-        fi
-
-    - name: "📋 Deployment Complete"
-      run: echo "🎉 App successfully deployed to production!"
+        cd infrastructure && terraform destroy -auto-approve \
+          -var="docker_username=${{ secrets.DOCKER_USERNAME }}" \
+          -var="docker_password=${{ secrets.DOCKER_PASSWORD }}" \
+          -var="db_password=${{ secrets.DB_PASSWORD }}" \
+          -var="secret_key=${{ secrets.SECRET_KEY }}" \
+          -var="ssh_public_key=${{ secrets.EC2_SSH_PUBLIC_KEY }}"
