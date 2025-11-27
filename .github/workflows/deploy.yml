@@ -112,7 +112,7 @@ jobs:
           echo "Creating Traefik configuration..."
           sudo touch /opt/brb-app/traefik/acme.json
           sudo chmod 600 /opt/brb-app/traefik/acme.json
-          sudo bash -c 'cat > /opt/brb-app/traefik/traefik.yml' << TRAEFIK
+          sudo bash -c 'cat > /opt/brb-app/traefik/traefik.yml' << 'TRAEFIK'
 api:
   dashboard: false
 entryPoints:
@@ -136,7 +136,7 @@ providers:
   docker:
     endpoint: "unix:///var/run/docker.sock"
     exposedByDefault: false
-'TRAEFIK'
+TRAEFIK
           
           sudo chown -R ubuntu:ubuntu /opt/brb-app
           echo "Waiting 60 seconds for DNS to propagate..."
