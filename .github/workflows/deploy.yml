@@ -136,7 +136,7 @@ providers:
   docker:
     endpoint: "unix:///var/run/docker.sock"
     exposedByDefault: false
-TRAEFIK
+'TRAEFIK'
           
           sudo chown -R ubuntu:ubuntu /opt/brb-app
           echo "Waiting 60 seconds for DNS to propagate..."
